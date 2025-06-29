@@ -20,10 +20,23 @@ export class LoopStateManager {
     } catch (error) {
       // File doesn't exist yet, start with empty states
       this.loopStates = new Map();
+      // Ensure data directory exists
+      try {
+        await fs.mkdir(this.dataPath, { recursive: true });
+      } catch (mkdirError) {
+        // Directory might already exist, that's fine
+      }
     }
   }
 
   async saveStates() {
+    // Ensure data directory exists before writing
+    try {
+      await fs.mkdir(this.dataPath, { recursive: true });
+    } catch (error) {
+      // Directory might already exist, that's fine
+    }
+    
     const states = Object.fromEntries(this.loopStates);
     await fs.writeFile(this.loopStatesFile, JSON.stringify(states, null, 2));
   }
