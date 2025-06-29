@@ -612,10 +612,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Build context summary
       let contextInfo = `I'm ${roleContext.role}. Current project state:\n`;
-      contextInfo += `- Active missions: ${contextSummary.currentState.activeMissions.length}\n`;
-      contextInfo += `- Pending tasks: ${contextSummary.currentState.inProgressTasks.length}\n`;
-      contextInfo += `- Critical tickets: ${ticketReport.details.criticalItems.length}\n`;
-      contextInfo += `- Blockers: ${contextSummary.currentState.blockers.length}`;
+      
+      // Get role-specific task counts
+      if (roleContext.role === 'Chief Technology Officer') {
+        const allTasks = await taskQueue.getAllTasks();
+        const pendingReviews = allTasks.filter(t => 
+          t.status === 'in_review' && 
+          t.submissions && 
+          t.submissions.some(s => s.status === 'pending_review')
+        );
+        contextInfo += `- Active missions: ${contextSummary.currentState.activeMissions.length}\n`;
+        contextInfo += `- Tasks pending review: ${pendingReviews.length}\n`;
+        contextInfo += `- Critical tickets: ${ticketReport.details.criticalItems.length}\n`;
+        contextInfo += `- Blockers: ${contextSummary.currentState.blockers.length}`;
+      } else if (roleContext.role === 'Senior Developer') {
+        const developerTasks = await taskQueue.getPendingTasks('developer');
+        contextInfo += `- Active missions: ${contextSummary.currentState.activeMissions.length}\n`;
+        contextInfo += `- Tasks to implement: ${developerTasks.length}\n`;
+        contextInfo += `- Critical tickets: ${ticketReport.details.criticalItems.length}\n`;
+        contextInfo += `- Blockers: ${contextSummary.currentState.blockers.length}`;
+      } else {
+        contextInfo += `- Active missions: ${contextSummary.currentState.activeMissions.length}\n`;
+        contextInfo += `- Pending tasks: ${contextSummary.currentState.inProgressTasks.length}\n`;
+        contextInfo += `- Critical tickets: ${ticketReport.details.criticalItems.length}\n`;
+        contextInfo += `- Blockers: ${contextSummary.currentState.blockers.length}`;
+      }
       
       // Add role-specific instructions
       let instructions = '\n\n**IMPORTANT: How to use this system:**\n';
