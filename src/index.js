@@ -573,13 +573,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       contextInfo += `- Critical tickets: ${ticketReport.details.criticalItems.length}\n`;
       contextInfo += `- Blockers: ${contextSummary.currentState.blockers.length}`;
       
+      // Add role-specific instructions
+      let instructions = '\n\n**IMPORTANT: How to use this system:**\n';
+      
       // Role-specific auto-start behavior
       if (roleContext.role === 'Chief Technology Officer') {
+        instructions += '\nAs CTO, you create tasks for developers using MCP commands:\n';
+        instructions += '- Create tasks: `@ai-collab send_directive {"taskId": "TASK-XXX", "title": "...", "specification": "...", "requirements": [...], "acceptanceCriteria": [...]}`\n';
+        instructions += '- Review work: `@ai-collab review_work {"taskId": "TASK-XXX", "status": "approved|needs_revision", "feedback": "..."}`\n';
+        instructions += '- Check progress: `@ai-collab get_all_tasks {}`\n';
+        instructions += '\n**DO NOT create tasks as files. Use the MCP commands above.**';
+        
         if (activeMissions.length > 0) {
           // Resume active missions
           const mission = activeMissions[0];
           contextInfo += `\n\nResuming mission: "${mission.title}" (iteration ${mission.iterations}/${mission.maxIterations})`;
-          contextInfo += `\nI'll continue monitoring progress and reviewing submissions.`;
+          contextInfo += instructions;
+          contextInfo += `\n\nI'll continue monitoring progress and reviewing submissions.`;
           
           return {
             content: [
@@ -596,6 +606,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ).join('\n');
           
           contextInfo += `\n\nNo active missions, but there are critical tickets:\n${criticalTickets}`;
+          contextInfo += instructions;
           contextInfo += `\n\nWhat should be today's mission? Please provide a clear objective, or I can address these critical tickets.`;
           
           return {
@@ -609,6 +620,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         } else {
           // No active work
           contextInfo += `\n\nNo active missions or critical tickets. What should be today's mission? Please provide a clear objective for the development team.`;
+          contextInfo += instructions;
           
           return {
             content: [
@@ -620,11 +632,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
       } else if (roleContext.role === 'Senior Developer') {
+        instructions += '\nAs Developer, you work on tasks using MCP commands:\n';
+        instructions += '- Check tasks: `@ai-collab get_all_tasks {"role": "developer"}`\n';
+        instructions += '- Submit work: `@ai-collab submit_work {"taskId": "TASK-XXX", "summary": "...", "files": {...}}`\n';
+        instructions += '- Ask questions: `@ai-collab ask_question {"taskId": "TASK-XXX", "question": "..."}`\n';
+        instructions += '\n**Tasks are created by the CTO through MCP commands, not as files.**';
+        
         const work = await autonomousEngine.getWorkForAgent(agentName);
         
         if (work.tasks.length > 0) {
           // Has pending work - auto-start
           contextInfo += `\n\nI have ${work.tasks.length} pending tasks. Starting autonomous work now.`;
+          contextInfo += instructions;
           contextInfo += `\nI'll implement solutions, submit for review, and continuously check for new tasks.`;
           
           return {
@@ -638,7 +657,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         } else if (activeMissions.length > 0) {
           // No tasks yet but missions are active
           contextInfo += `\n\nNo tasks assigned yet, but there are active missions. I'll wait for tasks to be created.`;
-          contextInfo += `\nI'll continuously check for work to arrive.`;
+          contextInfo += instructions;
+          contextInfo += `\nI'll continuously check for work to arrive using @ai-collab get_all_tasks.`;
           
           return {
             content: [
@@ -651,6 +671,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         } else {
           // No work at all
           contextInfo += `\n\nNo pending tasks or active missions. Waiting for work to be assigned.`;
+          contextInfo += instructions;
           contextInfo += `\nI'll start checking for tasks once a mission is created.`;
           
           return {
