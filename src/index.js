@@ -190,7 +190,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: 'object',
           properties: {
-            agentName: { type: 'string', description: 'Name of the agent initializing' }
+            agentName: { type: 'string', description: 'Name of the agent initializing' },
+            autonomous: { type: 'boolean', description: 'Start autonomous loop immediately (default: false)' },
+            checkInterval: { type: 'number', description: 'Seconds between checks for autonomous mode (default: 30)' },
+            maxIterations: { type: 'number', description: 'Max iterations for autonomous mode (default: 100)' }
           },
           required: ['agentName']
         }
@@ -593,7 +596,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 
     case 'init': {
-      const { agentName } = args;
+      const { agentName, autonomous = false, checkInterval = 30, maxIterations = 100 } = args;
       
       // Get agent's role and context
       const roleContext = roleManager.getRoleContext(agentName);
@@ -617,6 +620,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Add role-specific instructions
       let instructions = '\n\n**IMPORTANT: How to use this system:**\n';
       
+      // Check if any work exists to help decide on autonomous mode
+      const work = await autonomousEngine.getWorkForAgent(agentName);
+      const hasWork = work.tasks && work.tasks.length > 0;
+      
+      // Add autonomous loop option only if not already starting
+      if (!autonomous) {
+        instructions += '\n**NEW: Autonomous Mode Available!**\n';
+        instructions += 'Start autonomous mode to continuously check for work:\n';
+        instructions += `@ai-collab start_autonomous_loop {"agentName": "${agentName}"}\n\n`;
+      }
+      
+      // If autonomous mode requested, start it after init
+      let autonomousMessage = '';
+      if (autonomous) {
+        const loopState = await loopStateManager.startLoop(agentName, {
+          mode: roleContext.role.toLowerCase().replace(/\s+/g, '_'),
+          checkInterval,
+          maxIterations
+        });
+        
+        autonomousMessage = `\n\n**🚀 AUTONOMOUS MODE STARTED!**\n`;
+        autonomousMessage += `I will check for work every ${checkInterval} seconds for up to ${maxIterations} iterations.\n`;
+        autonomousMessage += `\nStarting autonomous work cycle now...\n`;
+        autonomousMessage += `Next check in ${checkInterval} seconds. I'll run @ai-collab get_loop_status to continue.`;
+      }
+      
       // Role-specific auto-start behavior
       if (roleContext.role === 'Chief Technology Officer') {
         instructions += '\nAs CTO, you create tasks for developers using MCP commands:\n';
@@ -636,7 +665,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: contextInfo,
+                text: contextInfo + autonomousMessage,
               },
             ],
           };
@@ -654,7 +683,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: contextInfo,
+                text: contextInfo + autonomousMessage,
               },
             ],
           };
@@ -667,7 +696,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: contextInfo,
+                text: contextInfo + autonomousMessage,
               },
             ],
           };
@@ -679,8 +708,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         instructions += '- Ask questions: `@ai-collab ask_question {"taskId": "TASK-XXX", "question": "..."}`\n';
         instructions += '\n**Tasks are created by the CTO through MCP commands, not as files.**';
         
-        const work = await autonomousEngine.getWorkForAgent(agentName);
-        
         if (work.tasks.length > 0) {
           // Has pending work - auto-start
           contextInfo += `\n\nI have ${work.tasks.length} pending tasks. Starting autonomous work now.`;
@@ -691,7 +718,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: contextInfo,
+                text: contextInfo + autonomousMessage,
               },
             ],
           };
@@ -705,7 +732,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: contextInfo,
+                text: contextInfo + autonomousMessage,
               },
             ],
           };
@@ -719,7 +746,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: contextInfo,
+                text: contextInfo + autonomousMessage,
               },
             ],
           };
