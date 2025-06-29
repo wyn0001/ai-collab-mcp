@@ -79,7 +79,7 @@ Quick example:
 
 ### For Gemini
 
-Add to your `~/.gemini/settings.json`:
+Configure MCP in your `~/.gemini/settings.json`. See [Gemini Setup Guide](docs/gemini-setup.md) for detailed configuration.
 
 ```json
 {
