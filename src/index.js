@@ -713,8 +713,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ],
           };
         } else {
-          // No active work
-          contextInfo += `\n\nNo active missions or critical tickets. What should be today's mission? Please provide a clear objective for the development team.`;
+          // No active work - provide guidance based on PROJECT_REQUIREMENTS.md
+          contextInfo += `\n\nNo active missions or critical tickets.\n\n`;
+          contextInfo += `**🚀 Ready to start the Kanban Board project!**\n\n`;
+          contextInfo += `Based on PROJECT_REQUIREMENTS.md, the development phases are:\n`;
+          contextInfo += `1. Phase 1: Basic structure and task CRUD\n`;
+          contextInfo += `2. Phase 2: Drag and drop functionality\n`;
+          contextInfo += `3. Phase 3: Styling and responsive design\n`;
+          contextInfo += `4. Phase 4: Data persistence\n`;
+          contextInfo += `5. Phase 5: Polish and error handling\n\n`;
+          contextInfo += `**RECOMMENDED FIRST ACTION:**\n`;
+          contextInfo += `Start Phase 1 by creating a task for basic board structure:\n\n`;
+          contextInfo += `@ai-collab send_directive {\n`;
+          contextInfo += `  "taskId": "KAN-001",\n`;
+          contextInfo += `  "title": "Implement Basic Kanban Board Structure and Task CRUD",\n`;
+          contextInfo += `  "specification": "Create the foundational structure...",\n`;
+          contextInfo += `  "requirements": [...],\n`;
+          contextInfo += `  "acceptanceCriteria": [...]\n`;
+          contextInfo += `}`;
           contextInfo += instructions;
           
           return {
@@ -1145,8 +1161,64 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             instructions += `Found ${unansweredQuestions.length} unanswered question(s).\n`;
             instructions += `\n**NEXT ACTION:** Check questions with @ai-collab get_all_questions {}\n`;
           } else {
-            instructions = `\n\n✅ No pending reviews or questions.\n`;
-            instructions += `Waiting for developer submissions...\n`;
+            // Check if we should create new tasks based on project progress
+            const completedTasks = allTasks.filter(t => t.status === 'completed');
+            const pendingTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
+            const inProgressTasks = allTasks.filter(t => t.status === 'in_progress' || t.status === 'in_review');
+            
+            if (pendingTasks.length === 0 && inProgressTasks.length === 0) {
+              // No work in progress, CTO should create next tasks
+              workFound = true;
+              instructions = `\n\n**📝 PROJECT PLANNING NEEDED:**\n`;
+              instructions += `All current tasks are completed. Time to plan the next phase!\n\n`;
+              
+              // Analyze what's been done
+              const hasBasicStructure = completedTasks.some(t => 
+                t.title.toLowerCase().includes('basic') || 
+                t.title.toLowerCase().includes('crud')
+              );
+              const hasDragDrop = completedTasks.some(t => 
+                t.title.toLowerCase().includes('drag') || 
+                t.title.toLowerCase().includes('drop')
+              );
+              const hasStyling = completedTasks.some(t => 
+                t.title.toLowerCase().includes('style') || 
+                t.title.toLowerCase().includes('responsive')
+              );
+              const hasPersistence = completedTasks.some(t => 
+                t.title.toLowerCase().includes('persist') || 
+                t.title.toLowerCase().includes('storage')
+              );
+              
+              instructions += `**Completed Phases:**\n`;
+              if (hasBasicStructure) instructions += `✓ Phase 1: Basic structure and task CRUD\n`;
+              if (hasDragDrop) instructions += `✓ Phase 2: Drag and drop functionality\n`;
+              if (hasStyling) instructions += `✓ Phase 3: Styling and responsive design\n`;
+              if (hasPersistence) instructions += `✓ Phase 4: Data persistence\n`;
+              
+              instructions += `\n**Suggested Next Tasks:**\n`;
+              
+              if (!hasStyling && hasBasicStructure && hasDragDrop) {
+                instructions += `👉 Phase 3: Improve styling and make responsive\n`;
+                instructions += `   - Create task: "Enhance UI Design and Implement Responsive Layout"\n`;
+              } else if (!hasPersistence && hasBasicStructure) {
+                instructions += `👉 Phase 4: Add data persistence\n`;
+                instructions += `   - Create task: "Implement Local Storage for Task Persistence"\n`;
+              } else if (hasPersistence && !allTasks.some(t => t.title.toLowerCase().includes('error'))) {
+                instructions += `👉 Phase 5: Polish and error handling\n`;
+                instructions += `   - Create task: "Add Error Handling and User Feedback"\n`;
+              }
+              
+              instructions += `\n**NEXT ACTION:** Create a new task using:\n`;
+              instructions += `@ai-collab send_directive {"taskId": "KAN-XXX", "title": "...", "specification": "...", "requirements": [...], "acceptanceCriteria": [...]}\n`;
+              instructions += `\nRefer to PROJECT_REQUIREMENTS.md for detailed specifications.`;
+            } else if (pendingTasks.length > 0) {
+              instructions = `\n\n⏳ ${pendingTasks.length} task(s) pending developer work.\n`;
+              instructions += `Waiting for developer to pick up and implement...\n`;
+            } else {
+              instructions = `\n\n✅ No pending reviews or questions.\n`;
+              instructions += `${inProgressTasks.length} task(s) in progress. Waiting for submissions...\n`;
+            }
           }
         }
       } else if (roleContext.role === 'Senior Developer') {
