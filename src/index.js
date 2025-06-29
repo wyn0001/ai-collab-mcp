@@ -17,6 +17,7 @@ import { AutonomousEngine } from './autonomousEngine.js';
 import { TicketManager } from './ticketManager.js';
 import { ContextManager } from './contextManager.js';
 import { LoopStateManager } from './loopStateManager.js';
+import { ProjectPlanManager } from './projectPlanManager.js';
 
 const server = new Server(
   {
@@ -41,9 +42,11 @@ const autonomousEngine = new AutonomousEngine(taskQueue, missionManager, roleMan
 const ticketManager = new TicketManager();
 const contextManager = new ContextManager(projectState, taskQueue, missionManager, ticketManager);
 const loopStateManager = new LoopStateManager();
+const projectPlanManager = new ProjectPlanManager();
 
-// Initialize loop state manager
+// Initialize managers
 loopStateManager.init().catch(console.error);
+projectPlanManager.initializeDataDir().catch(console.error);
 
 // Error handling
 server.onerror = (error) => {
@@ -193,7 +196,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             agentName: { type: 'string', description: 'Name of the agent initializing' },
             autonomous: { type: 'boolean', description: 'Start autonomous loop immediately (default: false)' },
             checkInterval: { type: 'number', description: 'Seconds between checks for autonomous mode (default: 30)' },
-            maxIterations: { type: 'number', description: 'Max iterations for autonomous mode (default: 100)' }
+            maxIterations: { type: 'number', description: 'Max iterations for autonomous mode (default: 500)' },
+            mission: { type: 'object', description: 'Ad-hoc mission to execute (pauses main project plan)' },
+            createProjectPlan: { type: 'boolean', description: 'Create new project plan from requirements (default: false)' }
           },
           required: ['agentName']
         }
@@ -313,6 +318,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             agentName: { type: 'string', description: 'Name of the agent to check' }
           },
           required: ['agentName']
+        }
+      },
+      {
+        name: 'create_project_plan',
+        description: 'Create a comprehensive project plan with multiple phases',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Title of the project plan' },
+            description: { type: 'string', description: 'Description of the project' },
+            requirementsPath: { type: 'string', description: 'Path to requirements file (optional)' },
+            autoGenerate: { type: 'boolean', description: 'Auto-generate phases from requirements' }
+          },
+          required: ['title']
+        }
+      },
+      {
+        name: 'get_project_plan',
+        description: 'Get the current active project plan',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'update_plan_progress',
+        description: 'Update project plan progress when phase is complete',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            phaseComplete: { type: 'boolean', description: 'Mark current phase as complete' },
+            adjustments: { type: 'object', description: 'Any adjustments to the plan' }
+          }
         }
       }
     ]
@@ -596,7 +634,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 
     case 'init': {
-      const { agentName, autonomous = false, checkInterval = 30, maxIterations = 500 } = args;
+      const { agentName, autonomous = false, checkInterval = 30, maxIterations = 500, mission = null, createProjectPlan = false } = args;
       
       // Get agent's role and context
       const roleContext = roleManager.getRoleContext(agentName);
@@ -658,7 +696,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const loopState = await loopStateManager.startLoop(agentName, {
           mode: roleContext.role.toLowerCase().replace(/\s+/g, '_'),
           checkInterval,
-          maxIterations
+          maxIterations,
+          continuous: true // Enable continuous mode
         });
         
         autonomousMessage = `\n\n**🚀 AUTONOMOUS MODE STARTED!**\n`;
@@ -714,25 +753,88 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ],
           };
         } else {
-          // No active work - provide guidance based on PROJECT_REQUIREMENTS.md
-          contextInfo += `\n\nNo active missions or critical tickets.\n\n`;
-          contextInfo += `**🚀 Ready to start the Kanban Board project!**\n\n`;
-          contextInfo += `Based on PROJECT_REQUIREMENTS.md, the development phases are:\n`;
-          contextInfo += `1. Phase 1: Basic structure and task CRUD\n`;
-          contextInfo += `2. Phase 2: Drag and drop functionality\n`;
-          contextInfo += `3. Phase 3: Styling and responsive design\n`;
-          contextInfo += `4. Phase 4: Data persistence\n`;
-          contextInfo += `5. Phase 5: Polish and error handling\n\n`;
-          contextInfo += `**RECOMMENDED FIRST ACTION:**\n`;
-          contextInfo += `Start Phase 1 by creating a task for basic board structure:\n\n`;
-          contextInfo += `@ai-collab send_directive {\n`;
-          contextInfo += `  "taskId": "KAN-001",\n`;
-          contextInfo += `  "title": "Implement Basic Kanban Board Structure and Task CRUD",\n`;
-          contextInfo += `  "specification": "Create the foundational structure...",\n`;
-          contextInfo += `  "requirements": [...],\n`;
-          contextInfo += `  "acceptanceCriteria": [...]\n`;
-          contextInfo += `}`;
-          contextInfo += instructions;
+          // No active work - check for project plan or create one
+          const activePlan = await projectPlanManager.getActivePlan();
+          
+          if (activePlan) {
+            // Continue with existing project plan
+            const nextPhase = await projectPlanManager.getNextPhase(activePlan.id);
+            if (nextPhase) {
+              contextInfo += `\n\n**📝 CONTINUING PROJECT PLAN: ${activePlan.title}**\n\n`;
+              contextInfo += `Progress: Phase ${nextPhase.phaseNumber}/${nextPhase.totalPhases}\n`;
+              contextInfo += `Current Phase: ${nextPhase.phase.name}\n`;
+              contextInfo += `Description: ${nextPhase.phase.description}\n\n`;
+              
+              contextInfo += `**NEXT TASKS TO CREATE:**\n`;
+              nextPhase.phase.tasks.forEach((task, index) => {
+                contextInfo += `${index + 1}. ${task.title} (${task.priority} priority)\n`;
+              });
+              
+              contextInfo += `\n**RECOMMENDED ACTION:**\n`;
+              contextInfo += `Create the first task from this phase using @ai-collab send_directive\n`;
+              contextInfo += instructions;
+            } else {
+              contextInfo += `\n\n**🎉 PROJECT PLAN COMPLETE!**\n`;
+              contextInfo += `All ${activePlan.phases.length} phases have been completed.\n`;
+              contextInfo += `Total tasks completed: ${activePlan.completedTasks}\n\n`;
+              contextInfo += `Consider creating a new project plan or ad-hoc missions.`;
+              contextInfo += instructions;
+            }
+          } else if (createProjectPlan || !mission) {
+            // Create a new project plan
+            contextInfo += `\n\n**🚀 CREATING COMPREHENSIVE PROJECT PLAN**\n\n`;
+            
+            // Check if PROJECT_REQUIREMENTS.md exists
+            let requirements = null;
+            try {
+              requirements = await fs.readFile(path.join(process.cwd(), 'PROJECT_REQUIREMENTS.md'), 'utf8');
+            } catch (e) {
+              // No requirements file
+            }
+            
+            if (requirements) {
+              // Generate phases based on requirements
+              const phases = await projectPlanManager.generatePhaseBreakdown(requirements);
+              const plan = await projectPlanManager.createProjectPlan({
+                title: 'Kanban Board Development Plan',
+                description: 'Comprehensive development plan for the Kanban board project',
+                createdBy: agentName,
+                phases,
+                projectRequirements: requirements
+              });
+              
+              contextInfo += `Created ${plan.phases.length}-phase project plan with ${plan.totalTasks} total tasks:\n\n`;
+              plan.phases.forEach((phase, index) => {
+                contextInfo += `**Phase ${index + 1}: ${phase.name}**\n`;
+                contextInfo += `- ${phase.tasks.length} tasks, ${phase.estimatedDuration}\n`;
+              });
+              
+              contextInfo += `\n**STARTING WITH PHASE 1**\n`;
+              contextInfo += `Create the first task to begin development!`;
+              contextInfo += instructions;
+            } else {
+              contextInfo += `No PROJECT_REQUIREMENTS.md found. Please provide project requirements or create an ad-hoc mission.`;
+              contextInfo += instructions;
+            }
+          } else if (mission) {
+            // Create ad-hoc mission that pauses the main plan
+            await projectPlanManager.pauseCurrentPlan();
+            const adHocPlan = await projectPlanManager.createAdHocMission({
+              title: mission.title || mission,
+              description: mission.description || mission,
+              specification: mission.specification || mission,
+              requirements: mission.requirements || [],
+              acceptanceCriteria: mission.acceptanceCriteria || [],
+              createdBy: agentName
+            });
+            
+            contextInfo += `\n\n**🎯 AD-HOC MISSION CREATED**\n\n`;
+            contextInfo += `Mission: ${adHocPlan.title}\n`;
+            contextInfo += `The main project plan has been paused.\n\n`;
+            contextInfo += `**CREATE TASK FOR THIS MISSION:**\n`;
+            contextInfo += `Use @ai-collab send_directive to create implementation tasks.`;
+            contextInfo += instructions;
+          }
           
           return {
             content: [
@@ -1170,49 +1272,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             if (pendingTasks.length === 0 && inProgressTasks.length === 0) {
               // No work in progress, CTO should create next tasks
               workFound = true;
-              instructions = `\n\n**📝 PROJECT PLANNING NEEDED:**\n`;
-              instructions += `All current tasks are completed. Time to plan the next phase!\n\n`;
               
-              // Analyze what's been done
-              const hasBasicStructure = completedTasks.some(t => 
-                t.title.toLowerCase().includes('basic') || 
-                t.title.toLowerCase().includes('crud')
-              );
-              const hasDragDrop = completedTasks.some(t => 
-                t.title.toLowerCase().includes('drag') || 
-                t.title.toLowerCase().includes('drop')
-              );
-              const hasStyling = completedTasks.some(t => 
-                t.title.toLowerCase().includes('style') || 
-                t.title.toLowerCase().includes('responsive')
-              );
-              const hasPersistence = completedTasks.some(t => 
-                t.title.toLowerCase().includes('persist') || 
-                t.title.toLowerCase().includes('storage')
-              );
+              // Check for active project plan
+              const activePlan = await projectPlanManager.getActivePlan();
               
-              instructions += `**Completed Phases:**\n`;
-              if (hasBasicStructure) instructions += `✓ Phase 1: Basic structure and task CRUD\n`;
-              if (hasDragDrop) instructions += `✓ Phase 2: Drag and drop functionality\n`;
-              if (hasStyling) instructions += `✓ Phase 3: Styling and responsive design\n`;
-              if (hasPersistence) instructions += `✓ Phase 4: Data persistence\n`;
-              
-              instructions += `\n**Suggested Next Tasks:**\n`;
-              
-              if (!hasStyling && hasBasicStructure && hasDragDrop) {
-                instructions += `👉 Phase 3: Improve styling and make responsive\n`;
-                instructions += `   - Create task: "Enhance UI Design and Implement Responsive Layout"\n`;
-              } else if (!hasPersistence && hasBasicStructure) {
-                instructions += `👉 Phase 4: Add data persistence\n`;
-                instructions += `   - Create task: "Implement Local Storage for Task Persistence"\n`;
-              } else if (hasPersistence && !allTasks.some(t => t.title.toLowerCase().includes('error'))) {
-                instructions += `👉 Phase 5: Polish and error handling\n`;
-                instructions += `   - Create task: "Add Error Handling and User Feedback"\n`;
+              if (activePlan) {
+                const nextPhase = await projectPlanManager.getNextPhase(activePlan.id);
+                
+                if (nextPhase) {
+                  instructions = `\n\n**📝 PROJECT PLAN - NEXT PHASE READY:**\n`;
+                  instructions += `\nPlan: ${activePlan.title}\n`;
+                  instructions += `Progress: Phase ${nextPhase.phaseNumber}/${nextPhase.totalPhases}\n`;
+                  instructions += `\n**CURRENT PHASE: ${nextPhase.phase.name}**\n`;
+                  instructions += `${nextPhase.phase.description}\n\n`;
+                  
+                  instructions += `**TASKS TO CREATE FOR THIS PHASE:**\n`;
+                  nextPhase.phase.tasks.forEach((task, index) => {
+                    instructions += `${index + 1}. ${task.title}\n`;
+                    instructions += `   Type: ${task.type}, Priority: ${task.priority}\n`;
+                  });
+                  
+                  instructions += `\n**NEXT ACTION:** Create the first task from this phase:\n`;
+                  const firstTask = nextPhase.phase.tasks[0];
+                  instructions += `@ai-collab send_directive {\n`;
+                  instructions += `  "taskId": "KAN-${String(completedTasks.length + pendingTasks.length + 1).padStart(3, '0')}",\n`;
+                  instructions += `  "title": "${firstTask.title}",\n`;
+                  instructions += `  "specification": "${firstTask.specification || firstTask.title}",\n`;
+                  instructions += `  "requirements": [...],\n`;
+                  instructions += `  "acceptanceCriteria": [...]\n`;
+                  instructions += `}\n`;
+                  
+                  // Update plan progress
+                  await projectPlanManager.updatePlanProgress(activePlan.id, {
+                    completedTasks: completedTasks.length
+                  });
+                } else {
+                  instructions = `\n\n**🎉 PROJECT PLAN COMPLETE!**\n`;
+                  instructions += `\nAll ${activePlan.phases.length} phases completed successfully!\n`;
+                  instructions += `Total tasks completed: ${completedTasks.length}\n\n`;
+                  instructions += `**OPTIONS:**\n`;
+                  instructions += `1. Create a new project plan\n`;
+                  instructions += `2. Create ad-hoc missions for enhancements\n`;
+                  instructions += `3. Stop the autonomous loop\n`;
+                }
+              } else {
+                // Fallback to old logic if no project plan exists
+                instructions = `\n\n**📝 PROJECT PLANNING NEEDED:**\n`;
+                instructions += `No active project plan found. Consider creating one with:\n`;
+                instructions += `@ai-collab init {"agentName": "${agentName}", "createProjectPlan": true}\n`;
               }
-              
-              instructions += `\n**NEXT ACTION:** Create a new task using:\n`;
-              instructions += `@ai-collab send_directive {"taskId": "KAN-XXX", "title": "...", "specification": "...", "requirements": [...], "acceptanceCriteria": [...]}\n`;
-              instructions += `\nRefer to PROJECT_REQUIREMENTS.md for detailed specifications.`;
             } else if (pendingTasks.length > 0) {
               instructions = `\n\n⏳ ${pendingTasks.length} task(s) pending developer work.\n`;
               instructions += `Waiting for developer to pick up and implement...\n`;
@@ -1295,6 +1403,107 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: 'text',
             text: status,
+          },
+        ],
+      };
+    }
+
+    case 'create_project_plan': {
+      const { title, description, requirementsPath, autoGenerate } = args;
+      
+      let requirements = null;
+      if (requirementsPath || autoGenerate) {
+        try {
+          const reqPath = requirementsPath || path.join(process.cwd(), 'PROJECT_REQUIREMENTS.md');
+          requirements = await fs.readFile(reqPath, 'utf8');
+        } catch (e) {
+          // No requirements file
+        }
+      }
+      
+      let phases = [];
+      if (requirements && autoGenerate) {
+        phases = await projectPlanManager.generatePhaseBreakdown(requirements);
+      }
+      
+      const plan = await projectPlanManager.createProjectPlan({
+        title,
+        description: description || title,
+        createdBy: 'system',
+        phases,
+        projectRequirements: requirements
+      });
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Project plan created: ${plan.id}\n\nTitle: ${plan.title}\nPhases: ${plan.phases.length}\nTotal Tasks: ${plan.totalTasks}\nStatus: ${plan.status}`,
+          },
+        ],
+      };
+    }
+
+    case 'get_project_plan': {
+      const activePlan = await projectPlanManager.getActivePlan();
+      
+      if (!activePlan) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'No active project plan found.',
+            },
+          ],
+        };
+      }
+      
+      const nextPhase = await projectPlanManager.getNextPhase(activePlan.id);
+      
+      let response = `**Active Project Plan**\n`;
+      response += `Title: ${activePlan.title}\n`;
+      response += `Status: ${activePlan.status}\n`;
+      response += `Progress: ${activePlan.completedTasks}/${activePlan.totalTasks} tasks\n`;
+      response += `Current Phase: ${activePlan.currentPhase + 1}/${activePlan.phases.length}\n\n`;
+      
+      if (nextPhase) {
+        response += `**Next Phase: ${nextPhase.phase.name}**\n`;
+        response += nextPhase.phase.tasks.map(t => `- ${t.title}`).join('\n');
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: response,
+          },
+        ],
+      };
+    }
+
+    case 'update_plan_progress': {
+      const { phaseComplete, adjustments } = args;
+      const activePlan = await projectPlanManager.getActivePlan();
+      
+      if (!activePlan) {
+        throw new Error('No active project plan to update');
+      }
+      
+      const updates = {
+        currentPhaseComplete: phaseComplete || false
+      };
+      
+      if (adjustments) {
+        await projectPlanManager.adjustPlan(activePlan.id, adjustments);
+      }
+      
+      const updatedPlan = await projectPlanManager.updatePlanProgress(activePlan.id, updates);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Plan updated. Current phase: ${updatedPlan.currentPhase + 1}/${updatedPlan.phases.length}`,
           },
         ],
       };
