@@ -16,6 +16,7 @@ import { MissionManager } from './missionManager.js';
 import { AutonomousEngine } from './autonomousEngine.js';
 import { TicketManager } from './ticketManager.js';
 import { ContextManager } from './contextManager.js';
+import { LoopStateManager } from './loopStateManager.js';
 
 const server = new Server(
   {
@@ -39,6 +40,10 @@ const missionManager = new MissionManager(taskQueue, roleManager);
 const autonomousEngine = new AutonomousEngine(taskQueue, missionManager, roleManager);
 const ticketManager = new TicketManager();
 const contextManager = new ContextManager(projectState, taskQueue, missionManager, ticketManager);
+const loopStateManager = new LoopStateManager();
+
+// Initialize loop state manager
+loopStateManager.init().catch(console.error);
 
 // Error handling
 server.onerror = (error) => {
@@ -269,6 +274,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             agentName: { type: 'string', description: 'Agent requesting context' }
           }
+        }
+      },
+      {
+        name: 'start_autonomous_loop',
+        description: 'Start an autonomous work loop that continuously checks for and processes work',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Name of the agent starting the loop' },
+            mode: { type: 'string', enum: ['continuous', 'developer', 'cto'], description: 'Type of autonomous loop' },
+            checkInterval: { type: 'number', description: 'Seconds between checks (default: 30)' },
+            maxIterations: { type: 'number', description: 'Maximum loop iterations (default: 100)' }
+          },
+          required: ['agentName']
+        }
+      },
+      {
+        name: 'stop_autonomous_loop',
+        description: 'Stop the autonomous work loop',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Name of the agent stopping the loop' }
+          },
+          required: ['agentName']
+        }
+      },
+      {
+        name: 'get_loop_status',
+        description: 'Get the current status of the autonomous loop',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Name of the agent to check' }
+          },
+          required: ['agentName']
         }
       }
     ]
@@ -895,6 +936,121 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: 'text',
             text: `Handoff document generated at: ${handoffPath}`,
+          },
+        ],
+      };
+    }
+
+    case 'start_autonomous_loop': {
+      const { agentName, mode, checkInterval, maxIterations } = args;
+      
+      // Get agent's role
+      const roleContext = roleManager.getRoleContext(agentName);
+      if (!roleContext) {
+        throw new Error(`No role assigned to agent: ${agentName}`);
+      }
+      
+      // Start the loop
+      const loopState = await loopStateManager.startLoop(agentName, {
+        mode: mode || roleContext.role.toLowerCase().replace(/\s+/g, '_'),
+        checkInterval,
+        maxIterations
+      });
+      
+      // Build instructions for the agent
+      let instructions = `Autonomous loop started! I will check for work every ${loopState.checkInterval} seconds.\n\n`;
+      instructions += `**IMPORTANT INSTRUCTIONS FOR AUTONOMOUS OPERATION:**\n\n`;
+      instructions += `1. After this message, wait ${loopState.checkInterval} seconds\n`;
+      instructions += `2. Then run: @ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
+      instructions += `3. If loop is still active, check for work:\n`;
+      
+      if (roleContext.role === 'Senior Developer') {
+        instructions += `   - Run: @ai-collab get_all_tasks {"role": "developer"}\n`;
+        instructions += `   - If tasks exist, work on them and submit\n`;
+        instructions += `   - If no tasks, wait and check again\n`;
+      } else if (roleContext.role === 'Chief Technology Officer') {
+        instructions += `   - Check for pending reviews: @ai-collab get_all_tasks {}\n`;
+        instructions += `   - Review any submissions\n`;
+        instructions += `   - Create new tasks as needed\n`;
+      }
+      
+      instructions += `4. After each action, increment the loop: @ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
+      instructions += `5. Repeat until loop stops or max iterations (${loopState.maxIterations}) reached\n\n`;
+      instructions += `Loop will automatically stop after ${loopState.maxIterations} iterations.`;
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: instructions,
+          },
+        ],
+      };
+    }
+
+    case 'stop_autonomous_loop': {
+      const { agentName } = args;
+      const stoppedState = await loopStateManager.stopLoop(agentName);
+      
+      if (!stoppedState) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No active loop found for agent: ${agentName}`,
+            },
+          ],
+        };
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Autonomous loop stopped. Completed ${stoppedState.currentIteration} iterations.`,
+          },
+        ],
+      };
+    }
+
+    case 'get_loop_status': {
+      const { agentName } = args;
+      let loopState = loopStateManager.getLoopState(agentName);
+      
+      if (!loopState) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No loop state found for agent: ${agentName}`,
+            },
+          ],
+        };
+      }
+      
+      // Auto-increment iteration when checking status
+      if (loopState.isActive) {
+        loopState = await loopStateManager.incrementIteration(agentName);
+      }
+      
+      let status = `Loop Status for ${agentName}:\n`;
+      status += `- Active: ${loopState.isActive}\n`;
+      status += `- Mode: ${loopState.mode}\n`;
+      status += `- Iteration: ${loopState.currentIteration}/${loopState.maxIterations}\n`;
+      status += `- Next check in: ${Math.max(0, Math.floor((new Date(loopState.nextCheckAt) - new Date()) / 1000))} seconds\n`;
+      
+      if (!loopState.isActive) {
+        status += `- Stopped at: ${loopState.stoppedAt || 'Unknown'}\n`;
+        status += `- Stop reason: ${loopState.stopReason || 'Manual stop'}\n`;
+      } else {
+        status += `\nContinue checking for work and processing tasks.`;
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: status,
           },
         ],
       };
