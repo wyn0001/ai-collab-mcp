@@ -708,7 +708,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         autonomousMessage += `3. I will guide you on what to do based on available work\n`;
         autonomousMessage += `4. Continue until all work is complete or ${maxIterations} iterations\n`;
         autonomousMessage += `\n⏱️ Set a timer for ${checkInterval} seconds and run the command when it expires.`;
-        autonomousMessage += `\nStarting iteration 1/${maxIterations}...`;
+        autonomousMessage += `\n\n⚠️ **IMPORTANT WARNINGS:**`;
+        autonomousMessage += `\n- DO NOT run blocking commands (npm start, server processes, etc.)`;
+        autonomousMessage += `\n- If you get stuck, press Ctrl+C to stop any running process`;
+        autonomousMessage += `\n- Always run processes in background with & or use separate terminals`;
+        autonomousMessage += `\n\nStarting iteration 1/${maxIterations}...`;
       }
       
       // Role-specific auto-start behavior
@@ -1208,9 +1212,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const roleContext = roleManager.getRoleContext(agentName);
       const work = await autonomousEngine.getWorkForAgent(agentName);
       
+      // Always use actual role, not stored mode
+      const actualMode = roleContext.role.toLowerCase().replace(/\s+/g, '_');
+      
       let status = `Loop Status for ${agentName}:\n`;
       status += `- Active: ${loopState.isActive}\n`;
-      status += `- Mode: ${loopState.mode}\n`;
+      status += `- Mode: ${actualMode} (Role: ${roleContext.role})\n`;
       status += `- Iteration: ${loopState.currentIteration}/${loopState.maxIterations}\n`;
       
       if (!loopState.isActive) {
