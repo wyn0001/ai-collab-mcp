@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { 
+  CallToolRequestSchema, 
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema 
+} from '@modelcontextprotocol/sdk/types.js';
 import { promises as fs } from 'fs';
 import { TaskQueue } from './taskQueue.js';
 import { ProjectState } from './projectState.js';
@@ -40,8 +46,237 @@ server.onerror = (error) => {
   logger.logError(error);
 };
 
-// Tool: Send directive (CTO -> Dev)
-server.setRequestHandler('tools/call', async (request) => {
+// Define available tools
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: 'send_directive',
+        description: 'Send a task directive to the development team',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Unique identifier for the task' },
+            title: { type: 'string', description: 'Title of the task' },
+            specification: { type: 'string', description: 'Detailed specification of what needs to be done' },
+            requirements: { type: 'array', items: { type: 'string' }, description: 'List of requirements' },
+            acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Acceptance criteria for the task' }
+          },
+          required: ['taskId', 'title', 'specification']
+        }
+      },
+      {
+        name: 'submit_work',
+        description: 'Submit completed work for review',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID this submission is for' },
+            files: { type: 'object', description: 'Files changed or created' },
+            summary: { type: 'string', description: 'Summary of work completed' },
+            testResults: { type: 'object', description: 'Test results' }
+          },
+          required: ['taskId', 'summary']
+        }
+      },
+      {
+        name: 'review_work',
+        description: 'Submit a review of submitted work',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID being reviewed' },
+            status: { type: 'string', enum: ['approved', 'needs_revision'], description: 'Review decision' },
+            feedback: { type: 'string', description: 'Review feedback' },
+            actionItems: { type: 'array', items: { type: 'string' }, description: 'Action items for revision' }
+          },
+          required: ['taskId', 'status', 'feedback']
+        }
+      },
+      {
+        name: 'ask_question',
+        description: 'Ask a question about a task',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID the question relates to' },
+            question: { type: 'string', description: 'The question being asked' },
+            context: { type: 'object', description: 'Additional context for the question' }
+          },
+          required: ['taskId', 'question']
+        }
+      },
+      {
+        name: 'answer_question',
+        description: 'Answer a previously asked question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            questionId: { type: 'string', description: 'ID of the question being answered' },
+            answer: { type: 'string', description: 'The answer to the question' }
+          },
+          required: ['questionId', 'answer']
+        }
+      },
+      {
+        name: 'get_all_tasks',
+        description: 'Get all tasks in the system',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            role: { type: 'string', description: 'Filter tasks by role' }
+          }
+        }
+      },
+      {
+        name: 'get_task_status',
+        description: 'Get status of a specific task',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID to get status for' }
+          },
+          required: ['taskId']
+        }
+      },
+      {
+        name: 'ping',
+        description: 'Simple ping to test server connectivity',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'update_project_state',
+        description: 'Update the state of a project component',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            component: { type: 'string', description: 'Component name to update' },
+            state: { type: 'object', description: 'New state data' }
+          },
+          required: ['component', 'state']
+        }
+      },
+      {
+        name: 'get_project_state',
+        description: 'Get current project state',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            component: { type: 'string', description: 'Specific component to get (optional)' }
+          }
+        }
+      },
+      {
+        name: 'generate_report',
+        description: 'Generate a project status report',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['summary', 'detailed', 'tickets'], description: 'Type of report to generate' }
+          }
+        }
+      },
+      {
+        name: 'init',
+        description: 'Initialize agent with role-based autonomous workflow',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Name of the agent initializing' }
+          },
+          required: ['agentName']
+        }
+      },
+      {
+        name: 'stop_autonomous_work',
+        description: 'Stop autonomous work mode',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Name of the agent stopping work' }
+          },
+          required: ['agentName']
+        }
+      },
+      {
+        name: 'status',
+        description: 'Get current system status',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Agent requesting status' }
+          }
+        }
+      },
+      {
+        name: 'create_mission',
+        description: 'Create a new mission',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Agent creating the mission' },
+            mission: { type: 'object', description: 'Mission details' }
+          },
+          required: ['agentName', 'mission']
+        }
+      },
+      {
+        name: 'create_ticket',
+        description: 'Create a new ticket',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Agent creating the ticket' },
+            type: { type: 'string', enum: ['bug', 'enhancement', 'tech_debt', 'implementation_plan'], description: 'Type of ticket' },
+            data: { type: 'object', description: 'Ticket data' }
+          },
+          required: ['agentName', 'type', 'data']
+        }
+      },
+      {
+        name: 'update_ticket',
+        description: 'Update an existing ticket',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ticketId: { type: 'string', description: 'ID of ticket to update' },
+            updates: { type: 'object', description: 'Updates to apply' },
+            agentName: { type: 'string', description: 'Agent making the update' }
+          },
+          required: ['ticketId', 'updates', 'agentName']
+        }
+      },
+      {
+        name: 'list_tickets',
+        description: 'List tickets with optional filtering',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', description: 'Filter by status' },
+            type: { type: 'string', description: 'Filter by type' },
+            priority: { type: 'string', description: 'Filter by priority' }
+          }
+        }
+      },
+      {
+        name: 'generate_context_summary',
+        description: 'Generate a summary of current project context',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Agent requesting context' }
+          }
+        }
+      }
+    ]
+  };
+});
+
+// Handle tool execution
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   switch (name) {
@@ -71,7 +306,7 @@ server.setRequestHandler('tools/call', async (request) => {
       };
     }
 
-    case 'get_pending_tasks': {
+    case 'get_all_tasks': {
       const { role } = args || {};
       const tasks = await taskQueue.getPendingTasks(role);
       
@@ -80,6 +315,31 @@ server.setRequestHandler('tools/call', async (request) => {
           {
             type: 'text',
             text: JSON.stringify(tasks, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'get_task_status': {
+      const { taskId } = args;
+      const task = await taskQueue.getTask(taskId);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(task, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'ping': {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'pong - AI Collaboration MCP Server is running',
           },
         ],
       };
@@ -110,7 +370,7 @@ server.setRequestHandler('tools/call', async (request) => {
       };
     }
 
-    case 'submit_review': {
+    case 'review_work': {
       const { taskId, status, feedback, actionItems } = args;
       
       const review = {
@@ -193,21 +453,90 @@ server.setRequestHandler('tools/call', async (request) => {
       };
     }
 
-    case 'get_my_role': {
-      const { agentName } = args;
-      const roleContext = roleManager.getRoleContext(agentName);
-      
+    case 'get_project_state': {
+      const { component } = args || {};
+      const state = component 
+        ? await projectState.getComponent(component)
+        : await projectState.getAllComponents();
+        
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(roleContext, null, 2),
+            text: JSON.stringify(state, null, 2),
           },
         ],
       };
     }
 
-    case 'start_mission': {
+    case 'generate_report': {
+      const { type } = args || {};
+      let report;
+      
+      switch (type) {
+        case 'tickets':
+          report = await ticketManager.generateTicketReport();
+          break;
+        case 'detailed':
+          report = await contextManager.generateOnboardingSummary();
+          break;
+        default:
+          report = {
+            activeMissions: await missionManager.getActiveMissions('all'),
+            pendingTasks: await taskQueue.getPendingTasks(),
+            projectState: await projectState.getAllComponents(),
+            tickets: await ticketManager.generateTicketReport()
+          };
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(report, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'stop_autonomous_work': {
+      const { agentName } = args;
+      await autonomousEngine.stopAutonomousWork(agentName);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Autonomous work stopped for agent: ${agentName}`,
+          },
+        ],
+      };
+    }
+
+    case 'status': {
+      const { agentName } = args || {};
+      const roleContext = roleManager.getRoleContext(agentName);
+      const autonomousStatus = await autonomousEngine.getAutonomousStatus();
+      const activeMissions = await missionManager.getActiveMissions('all');
+      
+      const status = {
+        role: roleContext?.role || 'Unknown',
+        autonomousStatus,
+        activeMissions: activeMissions.length,
+        timestamp: new Date().toISOString()
+      };
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(status, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'create_mission': {
       const { agentName, mission } = args;
       const result = await autonomousEngine.startMission(mission, agentName);
       
@@ -221,60 +550,6 @@ server.setRequestHandler('tools/call', async (request) => {
       };
     }
 
-    case 'get_autonomous_work': {
-      const { agentName } = args;
-      const work = await autonomousEngine.getWorkForAgent(agentName);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(work, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'process_autonomous_action': {
-      const { agentName, action } = args;
-      const result = await autonomousEngine.processAutonomousAction(agentName, action);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'check_mission_progress': {
-      const { missionId } = args;
-      const progress = await missionManager.checkMissionProgress(missionId);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(progress, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'get_autonomous_status': {
-      const status = await autonomousEngine.getAutonomousStatus();
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(status, null, 2),
-          },
-        ],
-      };
-    }
 
     case 'init': {
       const { agentName } = args;
@@ -520,7 +795,7 @@ server.setRequestHandler('tools/call', async (request) => {
       };
     }
 
-    case 'get_tickets': {
+    case 'list_tickets': {
       const { status, type, priority } = args || {};
       
       let tickets;
@@ -557,8 +832,8 @@ server.setRequestHandler('tools/call', async (request) => {
       };
     }
 
-    case 'get_context': {
-      const { agentName } = args;
+    case 'generate_context_summary': {
+      const { agentName } = args || {};
       
       // Capture current state
       await contextManager.captureCurrentState();
@@ -610,7 +885,7 @@ server.setRequestHandler('tools/call', async (request) => {
 });
 
 // Resource: Access project information
-server.setRequestHandler('resources/read', async (request) => {
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const { uri } = request.params;
   
   if (!uri.startsWith('ai-collab://')) {
@@ -787,7 +1062,7 @@ server.setRequestHandler('resources/read', async (request) => {
 });
 
 // Resource: List available resources
-server.setRequestHandler('resources/list', async () => {
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
   return {
     resources: [
       {
