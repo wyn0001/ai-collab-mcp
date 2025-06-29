@@ -172,7 +172,34 @@ export class TaskQueue {
   }
 
   async getAllTasks() {
-    return await this.loadTasks();
+    const tasks = await this.loadTasks();
+    // Convert to array format for easier processing
+    return Object.entries(tasks).map(([taskId, task]) => ({
+      taskId,
+      ...task
+    }));
+  }
+
+  async getUnansweredQuestions() {
+    const tasks = await this.loadTasks();
+    const unansweredQuestions = [];
+    
+    for (const taskId in tasks) {
+      const task = tasks[taskId];
+      const questions = task.questions || [];
+      
+      questions.forEach(q => {
+        if (q.status === 'unanswered') {
+          unansweredQuestions.push({
+            ...q,
+            taskId,
+            taskTitle: task.title
+          });
+        }
+      });
+    }
+    
+    return unansweredQuestions;
   }
 
   async markTaskComplete(taskId) {

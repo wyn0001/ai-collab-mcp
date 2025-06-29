@@ -642,8 +642,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         autonomousMessage = `\n\n**🚀 AUTONOMOUS MODE STARTED!**\n`;
         autonomousMessage += `I will check for work every ${checkInterval} seconds for up to ${maxIterations} iterations.\n`;
-        autonomousMessage += `\nStarting autonomous work cycle now...\n`;
-        autonomousMessage += `Next check in ${checkInterval} seconds. I'll run @ai-collab get_loop_status to continue.`;
+        autonomousMessage += `\n**IMPORTANT**: To run the autonomous loop:\n`;
+        autonomousMessage += `1. Wait ${checkInterval} seconds\n`;
+        autonomousMessage += `2. Run: @ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
+        autonomousMessage += `3. Follow the instructions provided\n`;
+        autonomousMessage += `4. Repeat until work is complete\n`;
+        autonomousMessage += `\nStarting first check now...`;
       }
       
       // Role-specific auto-start behavior
@@ -1060,17 +1064,123 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         loopState = await loopStateManager.incrementIteration(agentName);
       }
       
+      // Get agent's role and check for work
+      const roleContext = roleManager.getRoleContext(agentName);
+      const work = await autonomousEngine.getWorkForAgent(agentName);
+      
       let status = `Loop Status for ${agentName}:\n`;
       status += `- Active: ${loopState.isActive}\n`;
       status += `- Mode: ${loopState.mode}\n`;
       status += `- Iteration: ${loopState.currentIteration}/${loopState.maxIterations}\n`;
-      status += `- Next check in: ${Math.max(0, Math.floor((new Date(loopState.nextCheckAt) - new Date()) / 1000))} seconds\n`;
       
       if (!loopState.isActive) {
         status += `- Stopped at: ${loopState.stoppedAt || 'Unknown'}\n`;
         status += `- Stop reason: ${loopState.stopReason || 'Manual stop'}\n`;
+        return {
+          content: [
+            {
+              type: 'text',
+              text: status,
+            },
+          ],
+        };
+      }
+      
+      // Check for work based on role
+      let workFound = false;
+      let instructions = '';
+      
+      if (roleContext.role === 'Chief Technology Officer') {
+        // Check for pending reviews
+        const allTasks = await taskQueue.getAllTasks();
+        const pendingReviews = allTasks.filter(t => 
+          t.status === 'in_review' && 
+          t.submissions && 
+          t.submissions.some(s => s.status === 'pending_review')
+        );
+        
+        if (pendingReviews.length > 0) {
+          workFound = true;
+          instructions = `\n\n**🔔 WORK REQUIRING YOUR ATTENTION:**\n`;
+          instructions += `Found ${pendingReviews.length} task(s) pending review:\n`;
+          
+          for (const task of pendingReviews) {
+            instructions += `\n📋 Task ${task.taskId}: ${task.title}\n`;
+            const submission = task.submissions.find(s => s.status === 'pending_review');
+            if (submission) {
+              instructions += `   Submitted: ${new Date(submission.submittedAt).toLocaleString()}\n`;
+              instructions += `   Summary: ${submission.summary}\n`;
+            }
+          }
+          
+          instructions += `\n**NEXT ACTION:** Review the submission(s) above using:\n`;
+          instructions += `@ai-collab review_work {"taskId": "<TASK_ID>", "status": "approved|needs_revision", "feedback": "..."}\n`;
+        } else {
+          // Check for questions that need answers
+          const unansweredQuestions = await taskQueue.getUnansweredQuestions();
+          if (unansweredQuestions.length > 0) {
+            workFound = true;
+            instructions = `\n\n**🔔 QUESTIONS REQUIRING YOUR ATTENTION:**\n`;
+            instructions += `Found ${unansweredQuestions.length} unanswered question(s).\n`;
+            instructions += `\n**NEXT ACTION:** Check questions with @ai-collab get_all_questions {}\n`;
+          } else {
+            instructions = `\n\n✅ No pending reviews or questions.\n`;
+            instructions += `Waiting for developer submissions...\n`;
+          }
+        }
+      } else if (roleContext.role === 'Senior Developer') {
+        // Check for tasks to work on
+        const developerTasks = await taskQueue.getPendingTasks('developer');
+        
+        if (developerTasks.length > 0) {
+          workFound = true;
+          instructions = `\n\n**🔔 WORK AVAILABLE:**\n`;
+          instructions += `Found ${developerTasks.length} task(s) to implement:\n`;
+          
+          for (const task of developerTasks.slice(0, 3)) {
+            instructions += `\n📋 Task ${task.taskId}: ${task.title}\n`;
+            instructions += `   Status: ${task.status}\n`;
+          }
+          
+          instructions += `\n**NEXT ACTION:** Start implementing the first task.\n`;
+        } else {
+          // Check if waiting for review responses
+          const allTasks = await taskQueue.getAllTasks();
+          const inReview = allTasks.filter(t => 
+            t.status === 'in_review' && 
+            t.submissions && 
+            t.submissions.some(s => s.status === 'pending_review')
+          );
+          
+          if (inReview.length > 0) {
+            instructions = `\n\n⏳ Waiting for CTO review on ${inReview.length} submission(s).\n`;
+            instructions += `Will check again for new tasks or review feedback...\n`;
+          } else {
+            instructions = `\n\n✅ No pending tasks.\n`;
+            instructions += `Waiting for new assignments...\n`;
+          }
+        }
+      }
+      
+      // Calculate time until next check
+      const secondsUntilNext = Math.max(0, Math.floor((new Date(loopState.nextCheckAt) - new Date()) / 1000));
+      
+      status += `\n${instructions}`;
+      status += `\n⏰ Next automatic check in ${secondsUntilNext} seconds.`;
+      status += `\nTo continue the loop, wait ${secondsUntilNext} seconds then run:\n`;
+      status += `@ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
+      
+      // Update loop state with work status
+      if (workFound) {
+        await loopStateManager.updateLoop(agentName, {
+          lastWorkFound: new Date().toISOString(),
+          consecutiveEmptyChecks: 0
+        });
       } else {
-        status += `\nContinue checking for work and processing tasks.`;
+        const currentEmptyChecks = loopState.consecutiveEmptyChecks || 0;
+        await loopStateManager.updateLoop(agentName, {
+          consecutiveEmptyChecks: currentEmptyChecks + 1
+        });
       }
       
       return {
