@@ -195,7 +195,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             agentName: { type: 'string', description: 'Name of the agent initializing' },
             autonomous: { type: 'boolean', description: 'Start autonomous loop immediately (default: false)' },
-            checkInterval: { type: 'number', description: 'Seconds between checks for autonomous mode (default: 30)' },
+            checkInterval: { type: 'number', description: 'Seconds between checks for autonomous mode (default: 120)' },
             maxIterations: { type: 'number', description: 'Max iterations for autonomous mode (default: 500)' },
             mission: { type: 'object', description: 'Ad-hoc mission to execute (pauses main project plan)' },
             createProjectPlan: { type: 'boolean', description: 'Create new project plan from requirements (default: false)' }
@@ -634,7 +634,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 
     case 'init': {
-      const { agentName, autonomous = false, checkInterval = 30, maxIterations = 500, mission = null, createProjectPlan = false } = args;
+      const { agentName, autonomous = false, checkInterval = 120, maxIterations = 500, mission = null, createProjectPlan = false } = args;
       
       // Get agent's role and context
       const roleContext = roleManager.getRoleContext(agentName);
