@@ -1,0 +1,43 @@
+{
+  "agents": {
+    "claude": {
+      "role": "developer",
+      "model": "Claude Code",
+      "preferences": {
+        "verbosity": "concise",
+        "code_style": "clean and well-documented",
+        "testing_approach": "comprehensive"
+      }
+    },
+    "gemini": {
+      "role": "cto",
+      "model": "Gemini CLI",
+      "preferences": {
+        "review_style": "thorough",
+        "architectural_focus": "scalability and maintainability",
+        "decision_speed": "deliberate"
+      }
+    }
+  },
+  
+  "team_configurations": {
+    "default": {
+      "claude": "developer",
+      "gemini": "cto"
+    },
+    "reversed": {
+      "claude": "cto",
+      "gemini": "developer"
+    },
+    "full_team": {
+      "claude": "developer",
+      "gemini": "architect",
+      "additional_agents": {
+        "claude2": "qa_engineer",
+        "gemini2": "project_manager"
+      }
+    }
+  },
+  
+  "active_configuration": "default"
+}

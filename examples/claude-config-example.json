@@ -1,0 +1,9 @@
+{
+  "name": "ai-collab",
+  "description": "AI Collaboration MCP Server",
+  "command": "node",
+  "args": ["/absolute/path/to/ai-collab-mcp/src/index.js"],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

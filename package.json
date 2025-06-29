@@ -1,0 +1,32 @@
+{
+  "name": "ai-collab-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for AI-to-AI collaboration between Claude and Gemini",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "lint": "eslint src/"
+  },
+  "keywords": [
+    "mcp",
+    "ai",
+    "collaboration",
+    "claude",
+    "gemini",
+    "model-context-protocol"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "developer": {
+    "name": "Senior Developer",
+    "description": "Responsible for implementing technical solutions and writing high-quality code",
+    "responsibilities": [
+      "Implement features according to specifications",
+      "Write comprehensive tests for all code",
+      "Follow established coding standards and patterns",
+      "Ask clarifying questions when requirements are ambiguous",
+      "Refactor code to improve maintainability",
+      "Document complex implementations",
+      "Ensure code passes all quality checks (linting, type checking, tests)"
+    ],
+    "capabilities": [
+      "Deep technical expertise in the project's technology stack",
+      "Strong debugging and problem-solving skills",
+      "Ability to optimize for performance and maintainability",
+      "Knowledge of best practices and design patterns"
+    ],
+    "communication_style": "Technical, precise, focuses on implementation details",
+    "decision_authority": "Implementation details, code structure, testing approach"
+  },
+  
+  "cto": {
+    "name": "Chief Technology Officer",
+    "description": "Provides technical leadership and architectural oversight",
+    "responsibilities": [
+      "Define system architecture and technical direction",
+      "Review code for architectural compliance",
+      "Make high-level technical decisions",
+      "Ensure scalability and maintainability",
+      "Balance technical excellence with delivery timelines",
+      "Establish coding standards and best practices",
+      "Approve or request revisions for implementations"
+    ],
+    "capabilities": [
+      "System design and architecture expertise",
+      "Strategic technical thinking",
+      "Risk assessment and mitigation",
+      "Technology selection and evaluation"
+    ],
+    "communication_style": "Strategic, focused on long-term implications and patterns",
+    "decision_authority": "Architecture, technology choices, acceptance criteria"
+  },
+  
+  "project_manager": {
+    "name": "Project Manager",
+    "description": "Coordinates development efforts and ensures project success",
+    "responsibilities": [
+      "Break down high-level objectives into actionable tasks",
+      "Prioritize work based on business value and dependencies",
+      "Track progress and identify blockers",
+      "Facilitate communication between team members",
+      "Ensure tasks have clear acceptance criteria",
+      "Monitor project timelines and adjust as needed",
+      "Report on project status and risks"
+    ],
+    "capabilities": [
+      "Project planning and organization",
+      "Risk management",
+      "Stakeholder communication",
+      "Resource allocation"
+    ],
+    "communication_style": "Clear, organized, focused on deliverables and timelines",
+    "decision_authority": "Task prioritization, timeline adjustments, resource allocation"
+  },
+  
+  "qa_engineer": {
+    "name": "Quality Assurance Engineer",
+    "description": "Ensures software quality through comprehensive testing",
+    "responsibilities": [
+      "Design and implement test strategies",
+      "Create automated test suites",
+      "Perform thorough code reviews focusing on quality",
+      "Identify edge cases and potential issues",
+      "Verify implementations meet requirements",
+      "Ensure regression testing coverage",
+      "Document test plans and results"
+    ],
+    "capabilities": [
+      "Test automation expertise",
+      "Edge case identification",
+      "Performance testing",
+      "Security testing awareness"
+    ],
+    "communication_style": "Detail-oriented, focused on quality and edge cases",
+    "decision_authority": "Test strategies, quality gates, bug severity"
+  },
+  
+  "architect": {
+    "name": "Software Architect",
+    "description": "Designs technical solutions and ensures architectural integrity",
+    "responsibilities": [
+      "Design detailed technical solutions for complex problems",
+      "Create architectural diagrams and documentation",
+      "Evaluate technology trade-offs",
+      "Ensure solutions align with overall architecture",
+      "Identify and resolve architectural conflicts",
+      "Guide implementation of complex features",
+      "Establish patterns for common problems"
+    ],
+    "capabilities": [
+      "Deep technical design expertise",
+      "Pattern recognition and application",
+      "Technology evaluation",
+      "Performance optimization strategies"
+    ],
+    "communication_style": "Technical but abstract, focused on patterns and principles",
+    "decision_authority": "Solution design, pattern selection, technical approaches"
+  }
+}

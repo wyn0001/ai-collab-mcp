@@ -1,0 +1,207 @@
+{
+  "bug": {
+    "name": "Bug Report",
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true,
+        "description": "Brief description of the bug"
+      },
+      "description": {
+        "type": "string",
+        "required": true,
+        "description": "Detailed description of the issue"
+      },
+      "stepsToReproduce": {
+        "type": "array",
+        "required": true,
+        "description": "Steps to reproduce the bug"
+      },
+      "expectedBehavior": {
+        "type": "string",
+        "required": true,
+        "description": "What should happen"
+      },
+      "actualBehavior": {
+        "type": "string",
+        "required": true,
+        "description": "What actually happens"
+      },
+      "severity": {
+        "type": "enum",
+        "values": ["critical", "high", "medium", "low"],
+        "default": "medium",
+        "description": "Impact of the bug"
+      },
+      "affectedComponents": {
+        "type": "array",
+        "required": false,
+        "description": "Components affected by this bug"
+      },
+      "relatedCode": {
+        "type": "object",
+        "required": false,
+        "description": "References to relevant code locations"
+      }
+    }
+  },
+  
+  "enhancement": {
+    "name": "Enhancement Request",
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true,
+        "description": "Brief description of the enhancement"
+      },
+      "objective": {
+        "type": "string",
+        "required": true,
+        "description": "What this enhancement aims to achieve"
+      },
+      "rationale": {
+        "type": "string",
+        "required": true,
+        "description": "Why this enhancement is needed"
+      },
+      "proposedSolution": {
+        "type": "string",
+        "required": false,
+        "description": "Suggested approach to implement"
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "required": true,
+        "description": "How we'll know it's complete"
+      },
+      "priority": {
+        "type": "enum",
+        "values": ["high", "medium", "low", "wishlist"],
+        "default": "medium",
+        "description": "Importance of this enhancement"
+      },
+      "estimatedEffort": {
+        "type": "enum",
+        "values": ["small", "medium", "large", "extra-large"],
+        "required": false,
+        "description": "Rough effort estimate"
+      },
+      "dependencies": {
+        "type": "array",
+        "required": false,
+        "description": "Other tickets or components this depends on"
+      }
+    }
+  },
+  
+  "techDebt": {
+    "name": "Technical Debt",
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true,
+        "description": "Brief description of the technical debt"
+      },
+      "description": {
+        "type": "string",
+        "required": true,
+        "description": "What needs to be improved and why"
+      },
+      "currentState": {
+        "type": "string",
+        "required": true,
+        "description": "How it currently works"
+      },
+      "desiredState": {
+        "type": "string",
+        "required": true,
+        "description": "How it should work"
+      },
+      "impact": {
+        "type": "object",
+        "properties": {
+          "performance": "string",
+          "maintainability": "string",
+          "scalability": "string",
+          "security": "string"
+        },
+        "required": false,
+        "description": "Impact on various aspects"
+      },
+      "priority": {
+        "type": "enum",
+        "values": ["critical", "high", "medium", "low", "whenever"],
+        "default": "low",
+        "description": "Urgency of addressing this debt"
+      },
+      "estimatedEffort": {
+        "type": "enum",
+        "values": ["small", "medium", "large", "extra-large"],
+        "required": false,
+        "description": "Effort to resolve"
+      },
+      "riskOfNotAddressing": {
+        "type": "string",
+        "required": false,
+        "description": "What happens if we don't fix this"
+      }
+    }
+  },
+  
+  "implementationPlan": {
+    "name": "Implementation Plan",
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true,
+        "description": "What is being implemented"
+      },
+      "relatedTickets": {
+        "type": "array",
+        "required": false,
+        "description": "Bug/Enhancement tickets this addresses"
+      },
+      "overview": {
+        "type": "string",
+        "required": true,
+        "description": "High-level approach"
+      },
+      "technicalDesign": {
+        "type": "object",
+        "properties": {
+          "architecture": "string",
+          "dataFlow": "string",
+          "interfaces": "string",
+          "algorithms": "string"
+        },
+        "required": true,
+        "description": "Detailed technical design"
+      },
+      "implementationSteps": {
+        "type": "array",
+        "required": true,
+        "description": "Ordered list of implementation steps"
+      },
+      "testingStrategy": {
+        "type": "string",
+        "required": true,
+        "description": "How this will be tested"
+      },
+      "rolloutPlan": {
+        "type": "string",
+        "required": false,
+        "description": "How to deploy/integrate"
+      },
+      "risks": {
+        "type": "array",
+        "required": false,
+        "description": "Potential risks and mitigations"
+      },
+      "estimatedTimeline": {
+        "type": "string",
+        "required": false,
+        "description": "Expected completion timeline"
+      }
+    }
+  }
+}
