@@ -1,0 +1,16 @@
+{
+  "projectName": "Kanban Board",
+  "projectPath": "/Users/shawnbordeaux/Repos/kanban-board",
+  "description": "A modern, responsive kanban board web application built with AI-driven development",
+  "techStack": {
+    "status": "to-be-determined",
+    "note": "CTO will make technology decisions"
+  },
+  "phases": [
+    "Core Functionality (CRUD, columns)",
+    "Drag and Drop",
+    "Styling and Responsive Design", 
+    "Data Persistence",
+    "Polish and Error Handling"
+  ]
+}
