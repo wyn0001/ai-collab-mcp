@@ -58,10 +58,23 @@ chmod +x src/index.js
 
 ### For Claude Code
 
-Add the server to your Claude Code configuration:
+Create a `.mcp.json` file in your project root. See [Claude Code Setup Guide](docs/claude-code-setup.md) for detailed configuration.
 
-```bash
-claude mcp add ai-collab stdio "node /path/to/ai-collab-mcp/src/index.js"
+Quick example:
+```json
+{
+  "mcpServers": {
+    "ai-collab": {
+      "command": "node",
+      "args": [".mcp-server/src/index.js"],
+      "cwd": "/path/to/your/project",
+      "env": {
+        "PROJECT_PATH": "/path/to/your/project",
+        "NODE_PATH": "/path/to/.mcp-server/node_modules"
+      }
+    }
+  }
+}
 ```
 
 ### For Gemini
