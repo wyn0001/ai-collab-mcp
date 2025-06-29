@@ -596,7 +596,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 
     case 'init': {
-      const { agentName, autonomous = false, checkInterval = 30, maxIterations = 100 } = args;
+      const { agentName, autonomous = false, checkInterval = 30, maxIterations = 500 } = args;
       
       // Get agent's role and context
       const roleContext = roleManager.getRoleContext(agentName);
@@ -663,12 +663,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         autonomousMessage = `\n\n**🚀 AUTONOMOUS MODE STARTED!**\n`;
         autonomousMessage += `I will check for work every ${checkInterval} seconds for up to ${maxIterations} iterations.\n`;
-        autonomousMessage += `\n**IMPORTANT**: To run the autonomous loop:\n`;
-        autonomousMessage += `1. Wait ${checkInterval} seconds\n`;
-        autonomousMessage += `2. Run: @ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
-        autonomousMessage += `3. Follow the instructions provided\n`;
-        autonomousMessage += `4. Repeat until work is complete\n`;
-        autonomousMessage += `\nStarting first check now...`;
+        autonomousMessage += `\n**IMPORTANT**: This is a MANUAL autonomous loop:\n`;
+        autonomousMessage += `1. YOU must run the check command every ${checkInterval} seconds\n`;
+        autonomousMessage += `2. Command: @ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
+        autonomousMessage += `3. I will guide you on what to do based on available work\n`;
+        autonomousMessage += `4. Continue until all work is complete or ${maxIterations} iterations\n`;
+        autonomousMessage += `\n⏱️ Set a timer for ${checkInterval} seconds and run the command when it expires.`;
+        autonomousMessage += `\nStarting iteration 1/${maxIterations}...`;
       }
       
       // Role-specific auto-start behavior
@@ -1262,6 +1263,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status += `\n⏰ Next automatic check in ${secondsUntilNext} seconds.`;
       status += `\nTo continue the loop, wait ${secondsUntilNext} seconds then run:\n`;
       status += `@ai-collab get_loop_status {"agentName": "${agentName}"}\n`;
+      
+      // Add reminder about automatic continuation
+      if (loopState.currentIteration > 2 && !workFound) {
+        status += `\n⚠️ **REMINDER**: The autonomous loop requires you to manually run the get_loop_status command.\n`;
+        status += `Continue checking every ${loopState.checkInterval} seconds until work appears or max iterations reached.\n`;
+      }
+      
+      // Suggest stopping if no work for many iterations
+      if (loopState.consecutiveEmptyChecks > 10) {
+        status += `\n💡 **TIP**: No work found for ${loopState.consecutiveEmptyChecks} checks. Consider:\n`;
+        status += `- Stopping the loop: @ai-collab stop_autonomous_loop {"agentName": "${agentName}"}\n`;
+        status += `- Or wait for the other agent to complete their work\n`;
+      }
       
       // Update loop state with work status
       if (workFound) {
