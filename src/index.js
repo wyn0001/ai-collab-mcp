@@ -1313,27 +1313,64 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const nextPhase = await projectPlanManager.getNextPhase(activePlan.id);
                 
                 if (nextPhase) {
-                  instructions = `\n\n**📝 PROJECT PLAN - NEXT PHASE READY:**\n`;
-                  instructions += `\nPlan: ${activePlan.title}\n`;
-                  instructions += `Progress: Phase ${nextPhase.phaseNumber}/${nextPhase.totalPhases}\n`;
-                  instructions += `\n**CURRENT PHASE: ${nextPhase.phase.name}**\n`;
-                  instructions += `${nextPhase.phase.description}\n\n`;
+                  // Check if tasks from this phase already exist
+                  const phaseTaskTitles = nextPhase.phase.tasks.map(t => t.title.toLowerCase());
+                  const existingTitles = completedTasks.map(t => t.title.toLowerCase());
                   
-                  instructions += `**TASKS TO CREATE FOR THIS PHASE:**\n`;
-                  nextPhase.phase.tasks.forEach((task, index) => {
-                    instructions += `${index + 1}. ${task.title}\n`;
-                    instructions += `   Type: ${task.type}, Priority: ${task.priority}\n`;
+                  // Filter out tasks that already exist
+                  const newTasks = nextPhase.phase.tasks.filter(task => {
+                    const taskTitle = task.title.toLowerCase();
+                    // Check for exact or similar matches
+                    const alreadyExists = existingTitles.some(existing => {
+                      return existing.includes('drag') && taskTitle.includes('drag') ||
+                             existing.includes('drag-and-drop') && taskTitle.includes('drag-and-drop') ||
+                             existing === taskTitle ||
+                             (existing.includes(taskTitle.split(' ').slice(0, 3).join(' ')));
+                    });
+                    return !alreadyExists;
                   });
                   
-                  instructions += `\n**NEXT ACTION:** Create the first task from this phase:\n`;
-                  const firstTask = nextPhase.phase.tasks[0];
-                  instructions += `@ai-collab send_directive {\n`;
-                  instructions += `  "taskId": "KAN-${String(completedTasks.length + pendingTasks.length + 1).padStart(3, '0')}",\n`;
-                  instructions += `  "title": "${firstTask.title}",\n`;
-                  instructions += `  "specification": "${firstTask.specification || firstTask.title}",\n`;
-                  instructions += `  "requirements": [...],\n`;
-                  instructions += `  "acceptanceCriteria": [...]\n`;
-                  instructions += `}\n`;
+                  if (newTasks.length === 0) {
+                    // All tasks in this phase are complete, move to next phase
+                    instructions = `\n\n**✅ PHASE COMPLETE:**\n`;
+                    instructions += `All tasks in Phase ${nextPhase.phaseNumber} (${nextPhase.phase.name}) are already implemented!\n`;
+                    instructions += `\n**NEXT ACTION:** Update plan progress to move to next phase:\n`;
+                    instructions += `@ai-collab update_plan_progress {"phaseComplete": true}\n`;
+                    
+                    // Update plan progress automatically
+                    await projectPlanManager.updatePlanProgress(activePlan.id, {
+                      currentPhaseComplete: true,
+                      completedTasks: completedTasks.length
+                    });
+                  } else {
+                    instructions = `\n\n**📝 PROJECT PLAN - NEXT PHASE READY:**\n`;
+                    instructions += `\nPlan: ${activePlan.title}\n`;
+                    instructions += `Progress: Phase ${nextPhase.phaseNumber}/${nextPhase.totalPhases}\n`;
+                    instructions += `\n**CURRENT PHASE: ${nextPhase.phase.name}**\n`;
+                    instructions += `${nextPhase.phase.description}\n\n`;
+                    
+                    instructions += `**COMPLETED FROM THIS PHASE:**\n`;
+                    const completedInPhase = nextPhase.phase.tasks.filter(t => !newTasks.includes(t));
+                    completedInPhase.forEach(task => {
+                      instructions += `✓ ${task.title}\n`;
+                    });
+                    
+                    instructions += `\n**TASKS TO CREATE FOR THIS PHASE:**\n`;
+                    newTasks.forEach((task, index) => {
+                      instructions += `${index + 1}. ${task.title}\n`;
+                      instructions += `   Type: ${task.type}, Priority: ${task.priority}\n`;
+                    });
+                    
+                    instructions += `\n**NEXT ACTION:** Create the first task from this phase:\n`;
+                    const firstTask = newTasks[0];
+                    instructions += `@ai-collab send_directive {\n`;
+                    instructions += `  "taskId": "KAN-${String(completedTasks.length + pendingTasks.length + 1).padStart(3, '0')}",\n`;
+                    instructions += `  "title": "${firstTask.title}",\n`;
+                    instructions += `  "specification": "${firstTask.specification || firstTask.title}",\n`;
+                    instructions += `  "requirements": [...],\n`;
+                    instructions += `  "acceptanceCriteria": [...]\n`;
+                    instructions += `}\n`;
+                  }
                   
                   // Update plan progress
                   await projectPlanManager.updatePlanProgress(activePlan.id, {
