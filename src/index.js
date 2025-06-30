@@ -430,6 +430,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case 'submit_work': {
       const { taskId, files, summary, testResults } = args;
       
+      // Validate that this is a task ID, not a ticket ID
+      if (taskId.startsWith('BUG-') || taskId.startsWith('ENH-') || taskId.startsWith('TD-')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `❌ Error: "${taskId}" is a ticket ID, not a task ID.\n\n` +
+                    `Tickets (BUG-XXX, ENH-XXX) are for tracking issues and improvements.\n` +
+                    `Tasks (KAN-XXX, TASK-XXX) are work assignments that can be implemented.\n\n` +
+                    `As CTO, you should:\n` +
+                    `1. Create tickets to document issues\n` +
+                    `2. Create tasks (using send_directive) to assign work to developers\n` +
+                    `3. Link tickets to tasks if needed\n\n` +
+                    `Developers can only submit work for tasks, not tickets.`,
+            },
+          ],
+        };
+      }
+      
       const submission = {
         taskId,
         files: files || {},
@@ -718,9 +737,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Role-specific auto-start behavior
       if (roleContext.role === 'Chief Technology Officer') {
         instructions += '\nAs CTO, you create tasks for developers using MCP commands:\n';
-        instructions += '- Create tasks: `@ai-collab send_directive {"taskId": "TASK-XXX", "title": "...", "specification": "...", "requirements": [...], "acceptanceCriteria": [...]}`\n';
-        instructions += '- Review work: `@ai-collab review_work {"taskId": "TASK-XXX", "status": "approved|needs_revision", "feedback": "..."}`\n';
+        instructions += '- Create tasks: `@ai-collab send_directive {"taskId": "KAN-XXX", "title": "...", "specification": "...", "requirements": [...], "acceptanceCriteria": [...]}`\n';
+        instructions += '- Review work: `@ai-collab review_work {"taskId": "KAN-XXX", "status": "approved|needs_revision", "feedback": "..."}`\n';
         instructions += '- Check progress: `@ai-collab get_all_tasks {}`\n';
+        instructions += '\n**IMPORTANT DISTINCTIONS:**\n';
+        instructions += '- **Tasks (KAN-XXX)**: Work assignments that developers implement\n';
+        instructions += '- **Tickets (BUG-XXX, ENH-XXX)**: Issue tracking and documentation\n';
+        instructions += '\n**WORKFLOW:**\n';
+        instructions += '1. Create tickets to document bugs/enhancements (optional)\n';
+        instructions += '2. Create tasks for developers to implement fixes/features\n';
+        instructions += '3. Review submitted work and approve/reject\n';
         instructions += '\n**DO NOT create tasks as files. Use the MCP commands above.**';
         
         if (activeMissions.length > 0) {
