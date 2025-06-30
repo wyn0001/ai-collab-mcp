@@ -1,40 +1,82 @@
 # AI Collaboration MCP Server
 
+**🚧 Work in Progress - Active Development 🚧**
+
 A Model Context Protocol (MCP) server designed to facilitate direct AI-to-AI collaboration between Claude and Gemini, eliminating the need for human intermediation in development workflows.
 
-## 🚀 Quick Start - One Command Autonomous Workflow
+> **Note**: This project is under active development. While core features are functional, some aspects are still being refined. Contributions and feedback are welcome!
+
+## 🎯 Project Goal
+
+Enable truly autonomous AI-to-AI collaboration where:
+- AI agents work continuously on complex projects
+- Human intervention is minimal (ideally just starting the process)
+- Agents create comprehensive project plans and execute 100+ phases autonomously
+- Work continues until project completion or critical blocker
+
+## 🚀 Quick Start
 
 **Both AIs just run:**
 ```
-@ai-collab init {"agentName": "gemini"}  // For Gemini
-@ai-collab init {"agentName": "claude"}   // For Claude
+@ai-collab init {"agentName": "gemini", "autonomous": true}  // For Gemini (CTO)
+@ai-collab init {"agentName": "claude", "autonomous": true}   // For Claude (Developer)
 ```
 
 That's it! The `init` command:
-- Gets project context and checks for active work
-- Auto-resumes missions or prompts for new ones (CTO)
-- Auto-starts working on pending tasks (Developer)
+- Loads existing project context and state
+- Creates or resumes a comprehensive project plan
+- Automatically detects and continues pending work
 - Shows critical tickets and blockers
-- Handles everything autonomously
+- Starts autonomous execution loops
 
-## Overview
+## 🌟 Recent Enhancements
 
-This MCP server enables autonomous communication between AI assistants acting in different roles (e.g., Developer and CTO) for software development projects. With simple natural language commands, you can initiate complex multi-phase development tasks that run to completion without human intervention.
+### Autonomous Loop System (NEW!)
+- **120-second check intervals** for more natural workflow pacing
+- **500 iteration maximum** for extended autonomous operation
+- **Continuous work mode** - agents keep working until project completion
+- **Manual loop execution** - requires human to run check commands (automation WIP)
+
+### Project Plan Management (NEW!)
+- **Auto-generated 6-phase plans** from PROJECT_REQUIREMENTS.md
+- **Smart phase progression** - automatically moves to next phase when complete
+- **Duplicate task detection** - prevents recreating completed features
+- **Ad-hoc mission support** - pause main plan for urgent tasks
+
+### Enhanced Validation
+- **Ticket vs Task distinction** - prevents confusion between bug reports and work items
+- **Role-based instructions** - clearer guidance for CTO vs Developer roles
+- **Workflow enforcement** - ensures proper task creation and submission flow
+
+## ⚠️ Current Limitations
+
+### Automation Challenges
+- **Manual loop execution required** - AI agents can't schedule their own checks
+- **PATH configuration needed** - Claude/Gemini commands must be accessible
+- **API quota limits** - Gemini has daily request limits that may be exceeded
+
+### Known Issues
+- Agents occasionally create duplicate tasks (improved but not eliminated)
+- Edit button functionality may need manual verification
+- Some agents get confused about their role without explicit instructions
+
+### Workarounds Available
+- Automation scripts provided (`mcp-automator.js`) but require setup
+- Manual loop execution instructions included
+- Simulation mode for tracking when automation fails
 
 ## Features
 
-- **One-Command Startup**: Just `init` - automatically resumes work or prompts for missions
-- **Autonomous Workflows**: AI agents work continuously on complex missions without human intervention
-- **Role-Based System**: Flexible role assignment (Developer, CTO, Project Manager, QA Engineer, Architect)
-- **Ticketing System**: Track bugs, enhancements, tech debt, and implementation plans
-- **Context Retention**: Maintains project state across sessions with handoff documents
-- **Mission Management**: High-level objectives automatically decomposed into actionable tasks
-- **Task Management**: Create, track, and manage development tasks with full lifecycle support
-- **Code Review Workflow**: Submit work, provide reviews, and handle revision cycles
-- **Question & Answer System**: Asynchronous Q&A for clarifications during development
-- **Project State Tracking**: Maintain architectural decisions, code standards, and component states
-- **Comprehensive Logging**: Full audit trail of all AI interactions
-- **Resource Access**: Query tasks, tickets, missions, context, and logs through MCP resources
+- **Comprehensive Project Plans**: 100+ phase autonomous execution capability
+- **One-Command Startup**: Just `init` with autonomous flag
+- **Role-Based System**: CTO, Developer, PM, QA, Architect roles
+- **Smart Task Management**: Duplicate detection and phase progression
+- **Ticketing System**: Track bugs, enhancements, tech debt
+- **Context Retention**: Maintains state across sessions
+- **Mission Management**: High-level objectives with auto-decomposition
+- **Code Review Workflow**: Submit, review, and revision cycles
+- **Question & Answer System**: Asynchronous clarifications
+- **Comprehensive Logging**: Full audit trail
 
 ## Installation
 
@@ -58,20 +100,15 @@ chmod +x src/index.js
 
 ### For Claude Code
 
-Create a `.mcp.json` file in your project root. See [Claude Code Setup Guide](docs/claude-code-setup.md) for detailed configuration.
+Create a `.mcp.json` file in your project root:
 
-Quick example:
 ```json
 {
   "mcpServers": {
     "ai-collab": {
       "command": "node",
       "args": [".mcp-server/src/index.js"],
-      "cwd": "/path/to/your/project",
-      "env": {
-        "PROJECT_PATH": "/path/to/your/project",
-        "NODE_PATH": "/path/to/.mcp-server/node_modules"
-      }
+      "cwd": "/path/to/your/project"
     }
   }
 }
@@ -79,7 +116,7 @@ Quick example:
 
 ### For Gemini
 
-Configure MCP in your `~/.gemini/settings.json`. See [Gemini Setup Guide](docs/gemini-setup.md) for detailed configuration.
+Configure in `~/.gemini/settings.json`:
 
 ```json
 {
@@ -92,316 +129,129 @@ Configure MCP in your `~/.gemini/settings.json`. See [Gemini Setup Guide](docs/g
 }
 ```
 
-### Role Configuration
-
-AI roles are configured in `config/agents.json`. Default configuration:
-
-```json
-{
-  "agents": {
-    "claude": {"role": "developer"},
-    "gemini": {"role": "cto"}
-  }
-}
-```
-
-You can switch roles or use different configurations as needed.
+**Note**: Gemini may require explicit instructions to execute MCP commands.
 
 ## Usage
 
-### 🎯 Simplified One-Command Mode (Recommended)
+### 🎯 Autonomous Mode (Recommended)
 
-Just use `init` - it does everything:
+Start with autonomous flag for continuous operation:
 
 ```
-@ai-collab init {"agentName": "gemini"}  // Gemini (CTO)
-@ai-collab init {"agentName": "claude"}   // Claude (Developer)
+# Terminal 1 - Claude (Developer)
+@ai-collab init {"agentName": "claude", "autonomous": true}
+
+# Terminal 2 - Gemini (CTO)  
+@ai-collab init {"agentName": "gemini", "autonomous": true}
+
+# Terminal 3 - Manual Loop Execution (Required)
+# Every 120 seconds, run:
+@ai-collab get_loop_status {"agentName": "claude"}
+@ai-collab get_loop_status {"agentName": "gemini"}
 ```
 
-**What happens:**
-- **If work exists**: Automatically resumes missions/tasks
-- **If no work**: CTO is prompted for a mission, Developer waits
-- **If critical tickets**: Shows them to CTO for action
-- **Context loaded**: All previous decisions and state preserved
+### Automation Helpers (Experimental)
 
-### Traditional Tools (For Manual Control)
+For reduced manual intervention:
 
-#### For CTO Role
+```bash
+# Run automation script (requires setup)
+cd /path/to/project
+node mcp-automator.js auto
 
-1. **send_directive** - Create a new development task
-```
-@ai-collab send_directive {
-  "taskId": "TASK-001",
-  "title": "Implement user authentication",
-  "specification": "Create a secure login system...",
-  "requirements": ["Use bcrypt for passwords", "JWT for sessions"],
-  "acceptanceCriteria": ["Users can register", "Users can login"]
-}
+# Or simulation mode (shows what would happen)
+node mcp-automator-v2.js auto
 ```
 
-2. **submit_review** - Review submitted work
-```
-@ai-collab submit_review {
-  "taskId": "TASK-001",
-  "status": "approved",
-  "feedback": "Excellent implementation, well structured",
-  "actionItems": []
-}
-```
+See [AUTOMATION.md](AUTOMATION.md) for setup details.
 
-#### For Developer Role
+### Traditional Commands
 
-1. **get_pending_tasks** - View tasks assigned to you
-```
-@ai-collab get_pending_tasks {"role": "developer"}
-```
+#### CTO Tools
+- `send_directive` - Create development tasks
+- `review_work` - Review submissions
+- `create_project_plan` - Start comprehensive plan
+- `update_plan_progress` - Move to next phase
 
-2. **submit_work** - Submit completed work for review
-```
-@ai-collab submit_work {
-  "taskId": "TASK-001",
-  "files": {
-    "src/auth.js": "// Authentication implementation...",
-    "tests/auth.test.js": "// Test cases..."
-  },
-  "summary": "Implemented secure authentication with bcrypt and JWT",
-  "testResults": {"passed": 15, "failed": 0}
-}
-```
+#### Developer Tools  
+- `get_all_tasks` - View assigned work
+- `submit_work` - Submit completed tasks
+- `ask_question` - Request clarification
 
-3. **ask_question** - Request clarification
-```
-@ai-collab ask_question {
-  "taskId": "TASK-001",
-  "question": "Should we support OAuth providers?",
-  "context": {"currentImplementation": "email/password only"}
-}
-```
+## Project Plan Workflow
 
-### Autonomous Workflow Tools
+1. **Automatic Plan Creation**: On first init, generates 6-phase plan from requirements
+2. **Phase Progression**: Automatically advances when all phase tasks complete
+3. **Duplicate Prevention**: Skips tasks that match completed work
+4. **Ad-hoc Missions**: Can pause main plan for urgent work
 
-1. **start_mission** - Begin an autonomous workflow
-```
-@ai-collab start_mission {
-  "agentName": "gemini",
-  "mission": {
-    "title": "Implement robust error handling",
-    "objective": "Add comprehensive error handling throughout the application",
-    "acceptanceCriteria": ["All errors logged", "User-friendly messages", "No crashes"],
-    "maxIterations": 30
-  }
-}
-```
-
-2. **get_autonomous_work** - Check for pending autonomous tasks
-```
-@ai-collab get_autonomous_work {"agentName": "claude"}
-```
-
-3. **check_mission_progress** - Monitor mission status
-```
-@ai-collab check_mission_progress {"missionId": "MISSION-123"}
-```
-
-### Ticketing System
-
-Track issues, enhancements, and technical debt:
-
-```javascript
-// Create a bug ticket
-@ai-collab create_ticket {
-  "agentName": "gemini",
-  "type": "bug",
-  "data": {
-    "title": "Register allocation fails under pressure",
-    "severity": "high",
-    "description": "Details..."
-  }
-}
-
-// View tickets
-@ai-collab get_tickets {"status": "open", "type": "bug"}
-@ai-collab ai-collab://tickets  // View all with report
-```
-
-Ticket types: `bug`, `enhancement`, `techDebt`, `implementationPlan`
-
-### Context & Session Management
-
-The system automatically maintains context between sessions:
-
-```javascript
-// Start new session - automatically loads context
-@ai-collab init {"agentName": "gemini"}
-
-// Generate handoff document before break
-@ai-collab generate_handoff
-
-// View current context
-@ai-collab ai-collab://context
-@ai-collab ai-collab://handoff
-```
-
-### Available Resources
-
-Access project information using MCP resources:
-
-- `@ai-collab ai-collab://tasks` - View all tasks
-- `@ai-collab ai-collab://tasks/TASK-001` - View specific task
-- `@ai-collab ai-collab://project-state` - View project state
-- `@ai-collab ai-collab://logs` - View communication logs
-- `@ai-collab ai-collab://missions` - View all missions
-- `@ai-collab ai-collab://roles` - View role configuration
-- `@ai-collab ai-collab://tickets` - View all tickets with report
-- `@ai-collab ai-collab://context` - View project context
-- `@ai-collab ai-collab://handoff` - View handoff document
-
-## Workflow Example
-
-### 1. CTO Creates a Task
-```
-Gemini (CTO): @ai-collab send_directive {
-  "taskId": "TASK-001",
-  "title": "Create REST API endpoints",
-  "specification": "Implement CRUD operations for user management..."
-}
-```
-
-### 2. Developer Checks Tasks
-```
-Claude (Dev): @ai-collab get_pending_tasks {"role": "developer"}
-```
-
-### 3. Developer Submits Work
-```
-Claude (Dev): @ai-collab submit_work {
-  "taskId": "TASK-001",
-  "files": {...},
-  "summary": "Implemented all CRUD endpoints with validation"
-}
-```
-
-### 4. CTO Reviews and Approves
-```
-Gemini (CTO): @ai-collab submit_review {
-  "taskId": "TASK-001",
-  "status": "approved",
-  "feedback": "Well implemented, meets all requirements"
-}
-```
-
-## Autonomous Workflow Examples
-
-### Example 1: Fresh Start (No Active Work)
-```
-Human to Gemini: @ai-collab init {"agentName": "gemini"}
-Gemini: "I'm Chief Technology Officer. Current project state:
-- Active missions: 0
-- Pending tasks: 0  
-- Critical tickets: 0
-- Blockers: 0
-
-No active missions or critical tickets. What should be today's mission?"
-
-Human: "Ensure the compiler handles extreme register pressure correctly"
-// Gemini then automatically creates the mission and starts working
-```
-
-### Example 2: Resuming Active Work
-```
-Human to Claude: @ai-collab init {"agentName": "claude"}
-Claude: "I'm Senior Developer. Current project state:
-- Active missions: 1
-- Pending tasks: 3
-- Critical tickets: 0
-- Blockers: 0
-
-I have 3 pending tasks. Starting autonomous work now.
-I'll implement solutions, submit for review, and continuously check for new tasks."
-// Claude automatically starts working
-```
-
-### Example 3: Critical Tickets Exist
-```
-Human to Gemini: @ai-collab init {"agentName": "gemini"}
-Gemini: "I'm Chief Technology Officer. Current project state:
-- Active missions: 0
-- Pending tasks: 0
-- Critical tickets: 2
-- Blockers: 1
-
-No active missions, but there are critical tickets:
-- BUG-0087: Register allocation fails on nested loops
-- BUG-0123: Spill slot conflicts in nested function calls
-
-What should be today's mission? Please provide a clear objective, or I can address these critical tickets."
-```
-
-See [Autonomous Workflow Guide](docs/autonomous-workflow.md) for detailed documentation.
+Example phases:
+- Foundation & Basic Structure
+- Core Interactive Features  
+- UI/UX Enhancement
+- Data Persistence
+- Advanced Features
+- Polish & Quality Assurance
 
 ## Data Storage
 
-The server stores data in the following structure:
 ```
-config/
-├── roles.json         # Role definitions
-├── agents.json        # Agent-to-role assignments
-└── ticket-templates.json  # Ticket type definitions
-
 data/
-├── tasks.json         # All tasks and their states
-├── missions.json      # Mission definitions and progress
-├── project-state.json # Project configuration and standards
-├── tickets/
-│   └── tickets.json   # All tickets (bugs, enhancements, etc.)
-└── context/
-    ├── project-context.json  # Project context and state
-    └── handoff-document.md   # Generated handoff document
-
-logs/
-├── directives-YYYY-MM-DD.jsonl
-├── submissions-YYYY-MM-DD.jsonl
-├── reviews-YYYY-MM-DD.jsonl
-└── questions-YYYY-MM-DD.jsonl
+├── tasks.json              # Task tracking
+├── missions.json           # Active missions
+├── project-state.json      # Project configuration
+├── project-plans.json      # Comprehensive plans (NEW)
+├── loop-states.json        # Autonomous loop tracking (NEW)
+└── tickets/
+    └── tickets.json        # Bug/enhancement tracking
 ```
 
-## Development
+## Troubleshooting
 
-### Running in Development Mode
-```bash
-npm run dev
-```
+### Gemini Not Executing Commands
+- Prefix with: "Execute the following MCP command:"
+- Or: "Use the ai-collab tool to run:"
 
-### Running Tests
-```bash
-npm test
-```
+### Duplicate Task Creation
+- System now detects similar task names
+- Manually clean duplicates from `data/tasks.json` if needed
 
-### Linting
-```bash
-npm run lint
-```
-
-## Architecture
-
-The server is built with:
-- **@modelcontextprotocol/sdk** - MCP protocol implementation
-- **Node.js ES Modules** - Modern JavaScript
-- **File-based persistence** - Simple, portable data storage
-- **JSONL logging** - Structured, appendable logs
+### Loop Not Continuing
+- Ensure 120-second intervals between checks
+- Verify agent hasn't exceeded maxIterations (500)
+- Check API quotas haven't been exceeded
 
 ## Contributing
 
+This project needs help with:
+- True automation (removing manual loop execution)
+- Better Gemini CLI integration
+- Improved duplicate detection algorithms
+- Cross-platform automation scripts
+
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/improvement`)
+3. Commit changes (`git commit -m 'Add improvement'`)
+4. Push branch (`git push origin feature/improvement`)
+5. Open Pull Request
+
+## Roadmap
+
+- [ ] Native scheduling in MCP server
+- [ ] WebSocket/SSE for real-time updates
+- [ ] Improved role switching
+- [ ] Better error recovery
+- [ ] Multi-project support
+- [ ] Visual progress dashboard
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
 For issues, questions, or contributions, please open an issue on GitHub.
+
+---
+
+**Remember**: This is an experimental project pushing the boundaries of AI collaboration. Expect rough edges but exciting possibilities!
