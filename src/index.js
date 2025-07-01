@@ -60,7 +60,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'send_directive',
-        description: 'Send a task directive to the development team',
+        description: 'Send a task directive to the development team. Can create single or batch tasks with dependencies.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -68,9 +68,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             title: { type: 'string', description: 'Title of the task' },
             specification: { type: 'string', description: 'Detailed specification of what needs to be done' },
             requirements: { type: 'array', items: { type: 'string' }, description: 'List of requirements' },
-            acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Acceptance criteria for the task' }
+            acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Acceptance criteria for the task' },
+            priority: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Task priority (default: medium)' },
+            dependsOn: { type: 'array', items: { type: 'string' }, description: 'Task IDs this task depends on' },
+            blockedBy: { type: 'array', items: { type: 'string' }, description: 'Task IDs currently blocking this task' }
           },
           required: ['taskId', 'title', 'specification']
+        }
+      },
+      {
+        name: 'send_batch_directives',
+        description: 'Send multiple task directives at once. Use this to queue up multiple tasks for efficient workflow.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tasks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  taskId: { type: 'string', description: 'Unique identifier for the task' },
+                  title: { type: 'string', description: 'Title of the task' },
+                  specification: { type: 'string', description: 'Detailed specification' },
+                  requirements: { type: 'array', items: { type: 'string' } },
+                  acceptanceCriteria: { type: 'array', items: { type: 'string' } },
+                  priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+                  dependsOn: { type: 'array', items: { type: 'string' } },
+                  blockedBy: { type: 'array', items: { type: 'string' } }
+                },
+                required: ['taskId', 'title', 'specification']
+              },
+              description: 'Array of task directives to create'
+            }
+          },
+          required: ['tasks']
         }
       },
       {
@@ -363,7 +394,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   switch (name) {
     case 'send_directive': {
-      const { taskId, title, specification, requirements, acceptanceCriteria } = args;
+      const { taskId, title, specification, requirements, acceptanceCriteria, priority, dependsOn, blockedBy } = args;
       
       const directive = {
         taskId,
@@ -371,6 +402,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         specification,
         requirements: requirements || [],
         acceptanceCriteria: acceptanceCriteria || [],
+        priority: priority || 'medium',
+        dependsOn: dependsOn || [],
+        blockedBy: blockedBy || [],
         createdAt: new Date().toISOString(),
         status: 'pending',
       };
@@ -378,13 +412,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       await taskQueue.addDirective(directive);
       await logger.logDirective(directive);
       
+      const statusInfo = dependsOn?.length > 0 
+        ? ` (blocked by dependencies: ${dependsOn.join(', ')})`
+        : ' (available to work on)';
+      
       return {
         content: [
           {
             type: 'text',
-            text: `Directive ${taskId} queued successfully. Title: ${title}`,
+            text: `Directive ${taskId} queued successfully. Title: ${title}${statusInfo}`,
           },
         ],
+      };
+    }
+
+    case 'send_batch_directives': {
+      const { tasks } = args;
+      
+      if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: '❌ Error: Please provide an array of tasks to create.'
+          }]
+        };
+      }
+      
+      const directives = tasks.map(task => ({
+        ...task,
+        priority: task.priority || 'medium',
+        dependsOn: task.dependsOn || [],
+        blockedBy: task.blockedBy || [],
+      }));
+      
+      const addedTaskIds = await taskQueue.addBatchDirectives(directives);
+      
+      // Log each directive
+      for (const directive of directives) {
+        await logger.logDirective(directive);
+      }
+      
+      const summary = addedTaskIds.map(id => {
+        const task = directives.find(d => d.taskId === id);
+        const deps = task.dependsOn?.length > 0 ? ` (depends on: ${task.dependsOn.join(', ')})` : '';
+        return `• ${id}: ${task.title}${deps}`;
+      }).join('\n');
+      
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Successfully queued ${addedTaskIds.length} tasks:\n\n${summary}\n\nDeveloper can now work on available tasks continuously.`
+        }]
       };
     }
 
@@ -1403,18 +1481,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       } else if (roleContext.role === 'Senior Developer') {
         // Check for tasks to work on
         const developerTasks = await taskQueue.getPendingTasks('developer');
+        const nextWorkableTask = await taskQueue.getNextWorkableTask();
         
-        if (developerTasks.length > 0) {
+        if (nextWorkableTask) {
           workFound = true;
           instructions = `\n\n**🔔 WORK AVAILABLE:**\n`;
           instructions += `Found ${developerTasks.length} task(s) to implement:\n`;
           
-          for (const task of developerTasks.slice(0, 3)) {
-            instructions += `\n📋 Task ${task.taskId}: ${task.title}\n`;
-            instructions += `   Status: ${task.status}\n`;
+          // Show priority task first
+          instructions += `\n🎯 **PRIORITY TASK:**\n`;
+          instructions += `📋 Task ${nextWorkableTask.taskId}: ${nextWorkableTask.title}\n`;
+          instructions += `   Priority: ${nextWorkableTask.priority || 'medium'}\n`;
+          instructions += `   Status: ${nextWorkableTask.status}\n`;
+          if (nextWorkableTask.dependsOn?.length > 0) {
+            instructions += `   Dependencies: All met ✓\n`;
           }
           
-          instructions += `\n**NEXT ACTION:** Start implementing the first task.\n`;
+          // Show other available tasks
+          const otherTasks = developerTasks.filter(t => t.taskId !== nextWorkableTask.taskId);
+          if (otherTasks.length > 0) {
+            instructions += `\n📋 **OTHER AVAILABLE TASKS:**\n`;
+            for (const task of otherTasks.slice(0, 2)) {
+              instructions += `• ${task.taskId}: ${task.title} (${task.priority || 'medium'})\n`;
+            }
+          }
+          
+          instructions += `\n**🚀 CONTINUOUS WORK MODE:**\n`;
+          instructions += `I will now:\n`;
+          instructions += `1. Work on ${nextWorkableTask.taskId} immediately\n`;
+          instructions += `2. Submit the work when complete\n`;
+          instructions += `3. Automatically move to the next available task\n`;
+          instructions += `4. Continue until all available tasks are complete\n`;
+          
+          instructions += `\n**NEXT ACTION:** Starting work on ${nextWorkableTask.taskId} now...\n`;
+          
+          // Update task status to in_progress
+          await taskQueue.updateTaskStatus(nextWorkableTask.taskId, 'in_progress');
         } else {
           // Check if waiting for review responses
           const allTasks = await taskQueue.getAllTasks();
@@ -1424,9 +1526,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             t.submissions.some(s => s.status === 'pending_review')
           );
           
+          const blockedTasks = allTasks.filter(t => t.status === 'blocked');
+          
           if (inReview.length > 0) {
             instructions = `\n\n⏳ Waiting for CTO review on ${inReview.length} submission(s).\n`;
             instructions += `Will check again for new tasks or review feedback...\n`;
+          } else if (blockedTasks.length > 0) {
+            instructions = `\n\n🚧 ${blockedTasks.length} task(s) are blocked by dependencies:\n`;
+            for (const task of blockedTasks.slice(0, 3)) {
+              instructions += `• ${task.taskId}: Waiting for ${task.dependsOn.join(', ')}\n`;
+            }
+            instructions += `\nWill check again when dependencies are resolved...\n`;
           } else {
             instructions = `\n\n✅ No pending tasks.\n`;
             instructions += `Waiting for new assignments...\n`;

@@ -31,13 +31,21 @@ That's it! The `init` command:
 
 ## 🌟 Recent Enhancements
 
-### Autonomous Loop System (NEW!)
+### Workflow Optimization (v2.0) 🚀
+- **Task Dependencies**: Define `dependsOn` relationships between tasks
+- **Batch Task Creation**: CTO can create multiple tasks in one command
+- **Priority-Based Work**: Tasks are automatically prioritized (high/medium/low)
+- **Continuous Developer Mode**: No waiting between tasks - automatic progression
+- **Smart Task Status**: `available`, `blocked`, `in_progress`, `in_review`, `completed`
+- **Dependency Resolution**: Tasks automatically unblock when dependencies complete
+
+### Autonomous Loop System
 - **120-second check intervals** for more natural workflow pacing
 - **500 iteration maximum** for extended autonomous operation
 - **Continuous work mode** - agents keep working until project completion
 - **Manual loop execution** - requires human to run check commands (automation WIP)
 
-### Project Plan Management (NEW!)
+### Project Plan Management
 - **Auto-generated 6-phase plans** from PROJECT_REQUIREMENTS.md
 - **Smart phase progression** - automatically moves to next phase when complete
 - **Duplicate task detection** - prevents recreating completed features
@@ -55,10 +63,16 @@ That's it! The `init` command:
 - **PATH configuration needed** - Claude/Gemini commands must be accessible
 - **API quota limits** - Gemini has daily request limits that may be exceeded
 
-### Known Issues
+### Addressed Issues ✅
+- ~~Single task queuing~~ → Now supports batch task creation
+- ~~Developer idle time~~ → Continuous work mode implemented
+- ~~No task dependencies~~ → Full dependency system added
+- ~~Random task order~~ → Priority-based scheduling active
+
+### Remaining Challenges
 - Agents occasionally create duplicate tasks (improved but not eliminated)
 - Edit button functionality may need manual verification
-- Some agents get confused about their role without explicit instructions
+- Loop execution still requires human intervention
 
 ### Workarounds Available
 - Automation scripts provided (`mcp-automator.js`) but require setup
@@ -67,6 +81,7 @@ That's it! The `init` command:
 
 ## Features
 
+### Core Capabilities
 - **Comprehensive Project Plans**: 100+ phase autonomous execution capability
 - **One-Command Startup**: Just `init` with autonomous flag
 - **Role-Based System**: CTO, Developer, PM, QA, Architect roles
@@ -77,6 +92,14 @@ That's it! The `init` command:
 - **Code Review Workflow**: Submit, review, and revision cycles
 - **Question & Answer System**: Asynchronous clarifications
 - **Comprehensive Logging**: Full audit trail
+
+### 🆕 Enhanced Workflow Features (v2.0)
+- **Task Dependencies**: Tasks can depend on other tasks with automatic blocking/unblocking
+- **Priority-Based Scheduling**: High/medium/low priority with smart task selection
+- **Batch Task Creation**: CTO can queue multiple tasks at once for efficiency
+- **Continuous Work Mode**: Developer automatically moves to next available task
+- **Smart Status System**: `available`, `blocked`, `in_progress`, `in_review`, `completed`
+- **Dependency Visualization**: Clear indication of task dependencies and blockers
 
 ## Installation
 
@@ -168,15 +191,65 @@ See [AUTOMATION.md](AUTOMATION.md) for setup details.
 ### Traditional Commands
 
 #### CTO Tools
-- `send_directive` - Create development tasks
+- `send_directive` - Create development tasks (now with dependencies & priority)
+- `send_batch_directives` - Create multiple tasks at once
 - `review_work` - Review submissions
 - `create_project_plan` - Start comprehensive plan
 - `update_plan_progress` - Move to next phase
 
 #### Developer Tools  
-- `get_all_tasks` - View assigned work
+- `get_all_tasks` - View assigned work (sorted by priority)
 - `submit_work` - Submit completed tasks
 - `ask_question` - Request clarification
+
+### 🆕 Enhanced Workflow Examples
+
+#### Creating Tasks with Dependencies
+```json
+// Single task with dependency
+@ai-collab send_directive {
+  "taskId": "KAN-002",
+  "title": "Create database tables",
+  "specification": "Create user and project tables",
+  "priority": "high",
+  "dependsOn": ["KAN-001"]  // Won't be available until KAN-001 is approved
+}
+
+// Batch creation with dependencies
+@ai-collab send_batch_directives {
+  "tasks": [
+    {
+      "taskId": "KAN-003",
+      "title": "Setup database connection",
+      "specification": "Configure PostgreSQL connection",
+      "priority": "high"
+    },
+    {
+      "taskId": "KAN-004", 
+      "title": "Create user model",
+      "specification": "Implement User model with validation",
+      "priority": "medium",
+      "dependsOn": ["KAN-003"]
+    },
+    {
+      "taskId": "KAN-005",
+      "title": "Create auth endpoints",
+      "specification": "Implement login/register endpoints",
+      "priority": "medium",
+      "dependsOn": ["KAN-004"]
+    }
+  ]
+}
+```
+
+#### Continuous Work Mode (Developer)
+When the developer runs `get_loop_status`, they will:
+1. See prioritized available tasks
+2. Automatically start on the highest priority task
+3. After submitting, immediately move to next task
+4. Continue until all available tasks are complete
+
+No more waiting between tasks! The developer keeps working continuously.
 
 ## Project Plan Workflow
 
