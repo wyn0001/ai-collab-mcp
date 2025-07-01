@@ -8,6 +8,7 @@ import {
   ReadResourceRequestSchema 
 } from '@modelcontextprotocol/sdk/types.js';
 import { promises as fs } from 'fs';
+import path from 'path';
 import { TaskQueue } from './taskQueue.js';
 import { ProjectState } from './projectState.js';
 import { CommunicationLogger } from './logger.js';
@@ -929,11 +930,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
             
             if (requirements) {
+              // Extract project name from requirements or use directory name
+              const projectDir = path.basename(process.cwd());
+              let projectName = projectDir;
+              
+              // Try to extract project name from requirements
+              const titleMatch = requirements.match(/^#\s+(.+?)\s*-\s*Project Requirements/m);
+              if (titleMatch) {
+                projectName = titleMatch[1];
+              }
+              
               // Generate phases based on requirements
               const phases = await projectPlanManager.generatePhaseBreakdown(requirements);
               const plan = await projectPlanManager.createProjectPlan({
-                title: 'Kanban Board Development Plan',
-                description: 'Comprehensive development plan for the Kanban board project',
+                title: `${projectName} Development Plan`,
+                description: `Comprehensive development plan for the ${projectName} project`,
                 createdBy: agentName,
                 phases,
                 projectRequirements: requirements
