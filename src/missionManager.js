@@ -15,6 +15,10 @@ export class MissionManager {
 
   async initializeMissions() {
     try {
+      // Ensure data directory exists
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      
+      // Check if missions file exists
       await fs.access(this.missionsFile);
     } catch {
       await this.saveMissions({});
