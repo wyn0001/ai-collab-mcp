@@ -539,11 +539,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       await taskQueue.addSubmission(submission);
       await logger.logSubmission(submission);
       
+      // Check for next available task for continuous work mode
+      const nextTask = await taskQueue.getNextWorkableTask();
+      
+      let responseText = `Submission for task ${taskId} received and queued for review.`;
+      
+      if (nextTask) {
+        responseText += `\n\n🚀 **CONTINUOUS WORK MODE - NEXT TASK AVAILABLE:**\n`;
+        responseText += `📋 Task ${nextTask.taskId}: ${nextTask.title}\n`;
+        responseText += `Priority: ${nextTask.priority || 'medium'}\n`;
+        if (nextTask.dependsOn?.length > 0) {
+          responseText += `Dependencies: All satisfied ✓\n`;
+        }
+        responseText += `\n**ACTION**: Proceed immediately with this task to maintain continuous workflow.`;
+      } else {
+        // Check if there are blocked tasks waiting
+        const allTasks = await taskQueue.getAllTasks();
+        const blockedTasks = allTasks.filter(t => t.status === 'blocked');
+        const inReviewTasks = allTasks.filter(t => t.status === 'in_review');
+        
+        if (blockedTasks.length > 0) {
+          responseText += `\n\n⏳ **WAITING**: ${blockedTasks.length} task(s) blocked by dependencies.`;
+        } else if (inReviewTasks.length > 0) {
+          responseText += `\n\n⏳ **WAITING**: ${inReviewTasks.length} task(s) pending review.`;
+        } else {
+          responseText += `\n\n✅ **NO MORE TASKS**: All available work completed! Great job!`;
+        }
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: `Submission for task ${taskId} received and queued for review.`,
+            text: responseText,
           },
         ],
       };
@@ -1514,6 +1542,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           instructions += `4. Continue until all available tasks are complete\n`;
           
           instructions += `\n**NEXT ACTION:** Starting work on ${nextWorkableTask.taskId} now...\n`;
+          instructions += `\n💡 **TIP**: After submitting this task, you'll automatically see the next available task!`;
           
           // Update task status to in_progress
           await taskQueue.updateTaskStatus(nextWorkableTask.taskId, 'in_progress');
