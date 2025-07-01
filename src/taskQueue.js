@@ -234,12 +234,7 @@ export class TaskQueue {
   }
 
   async getAllTasks() {
-    const tasks = await this.loadTasks();
-    // Convert to array format for easier processing
-    return Object.entries(tasks).map(([taskId, task]) => ({
-      taskId,
-      ...task
-    }));
+    return await this.loadTasks();
   }
 
   async getUnansweredQuestions() {

@@ -384,6 +384,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             adjustments: { type: 'object', description: 'Any adjustments to the plan' }
           }
         }
+      },
+      {
+        name: 'diagnose_tasks',
+        description: 'Diagnose task state discrepancies between project state and actual tasks',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
       }
     ]
   };
@@ -1726,6 +1734,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: `Plan updated. Current phase: ${updatedPlan.currentPhase + 1}/${updatedPlan.phases.length}`,
           },
         ],
+      };
+    }
+
+    case 'diagnose_tasks': {
+      // Get all tasks from task queue
+      const allTasks = await taskQueue.getAllTasks();
+      const taskIds = Object.keys(allTasks);
+      
+      // Get project state
+      const projectStateData = await projectState.getFullState();
+      const projectPlan = projectStateData.components?.project_plan || {};
+      
+      // Extract task IDs from project state phases
+      const stateTaskIds = new Set();
+      if (projectPlan.phases) {
+        projectPlan.phases.forEach(phase => {
+          if (phase.tasks) {
+            phase.tasks.forEach(taskId => stateTaskIds.add(taskId));
+          }
+        });
+      }
+      
+      // Find discrepancies
+      const missingInTaskQueue = Array.from(stateTaskIds).filter(id => !taskIds.includes(id));
+      const missingInProjectState = taskIds.filter(id => !stateTaskIds.has(id));
+      
+      let diagnosis = `📊 **Task State Diagnosis**\n\n`;
+      diagnosis += `**Task Queue Status:**\n`;
+      diagnosis += `- Total tasks in queue: ${taskIds.length}\n`;
+      diagnosis += `- Task IDs: ${taskIds.length > 0 ? taskIds.join(', ') : 'NONE'}\n\n`;
+      
+      diagnosis += `**Project State Status:**\n`;
+      diagnosis += `- Total tasks in project state: ${stateTaskIds.size}\n`;
+      diagnosis += `- Task IDs: ${stateTaskIds.size > 0 ? Array.from(stateTaskIds).join(', ') : 'NONE'}\n\n`;
+      
+      diagnosis += `**Discrepancies:**\n`;
+      if (missingInTaskQueue.length > 0) {
+        diagnosis += `❌ Tasks in project state but NOT in task queue: ${missingInTaskQueue.join(', ')}\n`;
+        diagnosis += `   These tasks were referenced but never created with send_directive!\n\n`;
+      }
+      if (missingInProjectState.length > 0) {
+        diagnosis += `⚠️ Tasks in queue but NOT in project state: ${missingInProjectState.join(', ')}\n`;
+        diagnosis += `   These tasks exist but aren't tracked in the project plan.\n\n`;
+      }
+      if (missingInTaskQueue.length === 0 && missingInProjectState.length === 0) {
+        diagnosis += `✅ No discrepancies found - all tasks are properly synchronized.\n\n`;
+      }
+      
+      diagnosis += `**Recommendation:**\n`;
+      if (missingInTaskQueue.length > 0) {
+        diagnosis += `The CTO needs to create the missing tasks using send_directive or send_batch_directives.\n`;
+        diagnosis += `Example: @ai-collab send_directive {"taskId": "${missingInTaskQueue[0]}", "title": "...", "specification": "..."}\n`;
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: diagnosis
+        }]
       };
     }
 
