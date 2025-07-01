@@ -178,8 +178,8 @@ export class TaskQueue {
       const task = tasks[taskId];
       
       if (role === 'developer') {
-        // Developer sees available tasks and tasks needing revision
-        if (task.status === 'available' || task.status === 'needs_revision') {
+        // Developer sees available tasks, in-progress tasks, and tasks needing revision
+        if (task.status === 'available' || task.status === 'in_progress' || task.status === 'needs_revision') {
           pendingTasks.push({
             taskId,
             title: task.title,
@@ -283,6 +283,14 @@ export class TaskQueue {
     // Update task availability
     await this.updateTaskAvailability(tasks);
     await this.saveTasks(tasks);
+    
+    // First, check if there's already an in-progress task
+    for (const taskId in tasks) {
+      const task = tasks[taskId];
+      if (task.status === 'in_progress') {
+        return { taskId, ...task };
+      }
+    }
     
     // Find the highest priority available task
     let bestTask = null;
