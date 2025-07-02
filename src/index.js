@@ -1441,7 +1441,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           } else {
             // Check if we should create new tasks based on project progress
             const completedTasks = allTasks.filter(t => t.status === 'completed');
-            const pendingTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
+            const pendingTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'available');
             const inProgressTasks = allTasks.filter(t => t.status === 'in_progress' || t.status === 'in_review');
             
             if (pendingTasks.length === 0 && inProgressTasks.length === 0) {
