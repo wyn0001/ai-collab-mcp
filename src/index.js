@@ -577,7 +577,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         responseText += `\n**ACTION**: Proceed immediately with this task to maintain continuous workflow.`;
       } else {
         // Check if there are blocked tasks waiting
-        const allTasks = await taskQueue.getAllTasks();
+        const allTasksObj = await taskQueue.getAllTasks();
+        const allTasks = Object.values(allTasksObj);
         const blockedTasks = allTasks.filter(t => t.status === 'blocked');
         const inReviewTasks = allTasks.filter(t => t.status === 'in_review');
         
@@ -801,7 +802,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Get role-specific task counts
       if (roleContext.role === 'Chief Technology Officer') {
-        const allTasks = await taskQueue.getAllTasks();
+        const allTasksObj = await taskQueue.getAllTasks();
+        const allTasks = Object.values(allTasksObj);
         const pendingReviews = allTasks.filter(t => 
           t.status === 'in_review' && 
           t.submissions && 
@@ -1404,7 +1406,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       if (roleContext.role === 'Chief Technology Officer') {
         // Check for pending reviews
-        const allTasks = await taskQueue.getAllTasks();
+        const allTasksObj = await taskQueue.getAllTasks();
+        const allTasks = Object.values(allTasksObj);
         const pendingReviews = allTasks.filter(t => 
           t.status === 'in_review' && 
           t.submissions && 
@@ -1581,7 +1584,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           await taskQueue.updateTaskStatus(nextWorkableTask.taskId, 'in_progress');
         } else {
           // Check if waiting for review responses
-          const allTasks = await taskQueue.getAllTasks();
+          const allTasksObj = await taskQueue.getAllTasks();
+          const allTasks = Object.values(allTasksObj);
           const inReview = allTasks.filter(t => 
             t.status === 'in_review' && 
             t.submissions && 
