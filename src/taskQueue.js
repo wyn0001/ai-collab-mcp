@@ -36,7 +36,26 @@ export class TaskQueue {
   }
 
   async saveTasks(tasks) {
-    await fs.writeFile(this.tasksFile, JSON.stringify(tasks, null, 2));
+    try {
+      // Log when we're about to save tasks
+      const taskCount = Object.keys(tasks).length;
+      console.log(`Saving ${taskCount} tasks to ${this.tasksFile}`);
+      
+      // Ensure we're not accidentally saving an empty object over existing tasks
+      if (taskCount === 0) {
+        const existingTasks = await this.loadTasks();
+        const existingCount = Object.keys(existingTasks).length;
+        if (existingCount > 0) {
+          console.warn(`WARNING: About to overwrite ${existingCount} existing tasks with empty object!`);
+          console.trace('Stack trace for empty save:');
+        }
+      }
+      
+      await fs.writeFile(this.tasksFile, JSON.stringify(tasks, null, 2));
+    } catch (error) {
+      console.error('Error saving tasks:', error);
+      throw error;
+    }
   }
 
   async addDirective(directive) {
@@ -143,10 +162,16 @@ export class TaskQueue {
       // Skip if task is already completed or in review
       if (task.status === 'completed' || task.status === 'in_review') continue;
       
-      // Check if all dependencies are approved
+      // Check if all dependencies are met
       const hasUnmetDependencies = task.dependsOn?.some(depId => {
         const depTask = tasks[depId];
-        return !depTask || depTask.status !== 'completed';
+        // If the dependency doesn't exist, assume it was completed and removed
+        // This handles the case where completed tasks are cleaned up
+        if (!depTask) {
+          console.log(`Dependency ${depId} not found - assuming it was completed`);
+          return false;
+        }
+        return depTask.status !== 'completed';
       });
       
       // Check if blocked by any tasks

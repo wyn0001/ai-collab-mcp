@@ -392,6 +392,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {}
         }
+      },
+      {
+        name: 'reset_task_dependencies',
+        description: 'Reset task dependencies for tasks that are blocked by completed/missing tasks',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskIds: { 
+              type: 'array', 
+              items: { type: 'string' },
+              description: 'Task IDs to reset dependencies for (or empty for all blocked tasks)'
+            }
+          }
+        }
       }
     ]
   };
@@ -1792,6 +1806,61 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{
           type: 'text',
           text: diagnosis
+        }]
+      };
+    }
+
+    case 'reset_task_dependencies': {
+      const { taskIds } = args;
+      const allTasks = await taskQueue.getAllTasks();
+      let resetCount = 0;
+      let messages = [];
+      
+      // Get tasks to reset
+      const tasksToReset = taskIds?.length > 0 
+        ? taskIds.map(id => allTasks[id]).filter(Boolean)
+        : Object.values(allTasks).filter(task => task.status === 'blocked');
+      
+      for (const task of tasksToReset) {
+        if (!task) continue;
+        
+        // Check each dependency
+        const missingDeps = [];
+        const completedDeps = [];
+        
+        if (task.dependsOn?.length > 0) {
+          for (const depId of task.dependsOn) {
+            const depTask = allTasks[depId];
+            if (!depTask) {
+              missingDeps.push(depId);
+            } else if (depTask.status === 'completed') {
+              completedDeps.push(depId);
+            }
+          }
+          
+          // If all dependencies are either missing or completed, unblock the task
+          if (missingDeps.length + completedDeps.length === task.dependsOn.length) {
+            task.dependsOn = [];
+            task.status = 'available';
+            resetCount++;
+            messages.push(`✅ ${task.taskId}: Unblocked (had deps: ${missingDeps.concat(completedDeps).join(', ')})`);
+          } else {
+            messages.push(`⏳ ${task.taskId}: Still has active dependencies`);
+          }
+        }
+      }
+      
+      // Save the updated tasks
+      if (resetCount > 0) {
+        await taskQueue.saveTasks(allTasks);
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: `🔧 **Dependency Reset Results**\n\n` +
+                `Reset ${resetCount} task(s):\n${messages.join('\n')}\n\n` +
+                `Use 'get_all_tasks' to see the updated task list.`
         }]
       };
     }
